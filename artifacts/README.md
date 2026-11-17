@@ -7,7 +7,11 @@ outer halo.
 
 ![v5 nervous-system layout](screenshots/v5-01-nervous-system.png)
 
-## Two versions
+## Dashboard mockup
+
+`second-brain-os.html` is a clickable mockup of the whole system on generated example data: a Now board of open loops, the Brain (anatomy, spheres, rings, ribbon; regroup by area, project, source, type, status or year), a Timeline you can drag across to light the brain, Projects, Inbox and Sources. Open it in a browser; it needs WebGL2 for the Brain.
+
+## Particle field versions
 
 | File | Look | Particles | Motion |
 |---|---|---|---|

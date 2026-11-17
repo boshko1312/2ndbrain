@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Second Brain OS</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: a fixed left rail, one working surface, and a drawer that slides over it. The particle stage sits behind the Brain and Timeline views. */
+:root{
+  color-scheme:dark;
+  --bg:#060607; --surface:#111110; --raised:#1a1a19; --line:#2a2a28; --line-soft:#1f1f1d;
+  --ink:#f0efec; --ink-2:#c3c2b7; --ink-3:#8b8a82; --ink-4:#5d5c56;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b; --info:#3987e5;
+  --display:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --text:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --gl:max(16px, env(safe-area-inset-left, 0px)); --gr:max(16px, env(safe-area-inset-right, 0px));
+  --rail:208px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--text);overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.cap{font:500 10.5px/1.2 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none}
+
+#app{position:relative;height:100%;display:grid;grid-template-columns:var(--rail) minmax(0,1fr)}
+/* rail */
+#nav{display:flex;flex-direction:column;gap:2px;padding:18px 10px 14px var(--gl);border-right:1px solid var(--line-soft);background:var(--bg);min-width:0}
+#brand{font:600 15px var(--display);padding:0 8px 14px}
+#brand small{display:block;font:400 10.5px var(--mono);color:var(--ink-3);letter-spacing:.06em;margin-top:3px}
+#nav button.nv{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;color:var(--ink-2);text-align:left}
+#nav button.nv:hover{background:var(--surface);color:var(--ink)}
+#nav button.nv.on{background:var(--raised);color:var(--ink)}
+#nav .badge{font:500 11px var(--mono);color:var(--ink-3)}
+#nav .sp{flex:1}
+#searchBtn{display:flex;justify-content:space-between;align-items:center;margin:0 0 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink-3)}
+#searchBtn:hover{border-color:var(--ink-4);color:var(--ink-2)}
+#searchBtn kbd{font:11px var(--mono)}
+#demoNote{font:10.5px/1.5 var(--mono);color:var(--ink-4);padding:8px}
+
+#main{position:relative;min-width:0;min-height:0;overflow:hidden}
+#stage{position:absolute;inset:0;display:none;background:#000}
+#gl{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#gl.drag{cursor:grabbing} #gl.hot{cursor:pointer}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lb{position:absolute;left:0;top:0;white-space:nowrap;font:500 10.5px var(--mono);letter-spacing:.06em;color:var(--ink-2);padding:2px 6px;border:1px solid var(--line);border-radius:4px;background:rgba(6,6,7,.72);will-change:transform}
+.lb.yr{border-color:transparent;background:none;color:var(--ink-3)}
+#ring{position:absolute;left:0;top:0;width:20px;height:20px;margin:-10px 0 0 -10px;border:1.5px solid var(--ink);border-radius:50%;pointer-events:none;will-change:transform}
+body.at-brain #stage{display:block}
+body.at-timeline #stage{display:block;left:54%;border-left:1px solid var(--line-soft)}
+
+.view{position:absolute;inset:0;overflow:auto;padding:26px var(--gr) 40px 28px;display:none}
+.view.on{display:block}
+.view>header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;margin-bottom:18px}
+.view>header h1{font-size:24px}
+.view>header p{margin:0;color:var(--ink-3);max-width:68ch}
+
+/* Now */
+.live{border:1px solid var(--line);border-radius:10px;margin-bottom:22px;background:var(--surface)}
+.live .row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.6fr) auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line-soft);cursor:pointer}
+.live .row:first-of-type{border-top:0}
+.live .row:hover{background:var(--raised)}
+.live .hd{padding:10px 14px;border-bottom:1px solid var(--line-soft)}
+.live .what{color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
+.live b{font-weight:500}
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start}
+.col h3{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.col h3 .num{color:var(--ink-3)}
+.card{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:12px 13px;margin-bottom:10px}
+.card:hover{border-color:var(--ink-4);background:var(--raised)}
+.card h4{margin:0 0 3px;font:600 14px var(--display)}
+.card .area{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)}
+.card .next{margin:9px 0 9px;color:var(--ink-2);font-size:13px}
+.card .next b{display:block;font:500 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px}
+.card .ft{display:flex;flex-wrap:wrap;gap:4px 10px;font:11px var(--mono);color:var(--ink-3)}
+.st{display:inline-flex;align-items:center;gap:6px;font:500 11px var(--mono);letter-spacing:.04em;color:var(--ink-2)}
+.st i{width:9px;height:9px;flex:none}
+.st.s0 i{background:var(--warn);border-radius:2px;transform:rotate(45deg)}
+.st.s1 i{background:var(--good);border-radius:50%}
+.st.s2 i{border:2px solid var(--serious);border-radius:50%}
+.st.s3 i{background:var(--info);border-radius:2px}
+
+/* Brain overlays */
+#v-brain{padding:0;overflow:hidden;pointer-events:none}
+#v-brain>*{pointer-events:auto}
+.glass{background:rgba(10,10,10,.78);border:1px solid var(--line);border-radius:12px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#bTop{position:absolute;left:16px;top:14px;right:292px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;pointer-events:none}
+#bTop>*{pointer-events:auto}
+#bCount{font:12px var(--mono);color:var(--ink-2);padding:6px 10px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;background:rgba(10,10,10,.78);color:var(--ink-2)}
+.chip button{color:var(--ink-3);font-size:14px;line-height:1}
+.chip button:hover{color:var(--ink)}
+#bHint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(560px,calc(100% - 600px));text-align:center;font-size:12px;color:var(--ink-3);pointer-events:none}
+#legend{position:absolute;left:16px;bottom:14px;width:236px;max-height:46%;overflow:auto;padding:10px 6px 8px}
+#legend .cap{padding:0 8px 6px;display:flex;justify-content:space-between}
+#legend button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;width:100%;padding:4px 8px;border-radius:6px;text-align:left;font-size:12.5px;color:var(--ink-2)}
+#legend button:hover{background:var(--raised);color:var(--ink)}
+#legend button.on{background:var(--raised);color:var(--ink)}
+#legend button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#legend button .num{font-size:11px;color:var(--ink-3)}
+#vp{position:absolute;right:var(--gr);top:14px;width:256px;max-height:calc(100% - 28px);overflow:auto;padding:14px}
+#vp h4{margin:14px 0 8px}
+#vp h4:first-child{margin-top:0}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{padding:7px 0;font-size:12px;color:var(--ink-3);border-left:1px solid var(--line)}
+.seg button:first-child{border-left:0}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--ink);color:#000;font-weight:500}
+#formNote{margin:8px 0 0;font-size:12px;color:var(--ink-3)}
+select{width:100%;font:13px var(--text);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:28px;font-size:13px;color:var(--ink-2)}
+.tg{position:relative;width:32px;height:18px;border-radius:9px;border:1px solid var(--line);background:var(--surface);flex:none}
+.tg::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--ink-3);transition:transform .15s}
+.tg[aria-pressed="true"]{background:var(--ink-2);border-color:var(--ink-2)}
+.tg[aria-pressed="true"]::after{background:#000;transform:translateX(14px)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:120px;height:18px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line)}
+input[type=range]::-moz-range-track{height:2px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--ink);margin-top:-5px}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;color:var(--ink)}
+.btn:hover{border-color:var(--ink-3);background:var(--raised)}
+.btn.pri{background:var(--ink);color:#000;border-color:var(--ink);font-weight:500}
+#vpBtn{display:none;position:absolute;right:var(--gr);top:12px}
+
+/* Timeline */
+#v-timeline{right:46%;border-right:0}
+.tlbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tlbar .btn{padding:4px 10px;font:12px var(--mono)}
+.tlbar .btn.on{background:var(--ink);color:#000;border-color:var(--ink)}
+#chartWrap{position:relative;background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:12px 10px 6px}
+#chart{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair}
+#chart text{font:10px var(--mono);fill:var(--ink-3)}
+#chartLegend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:10px 4px 2px;font-size:12px;color:var(--ink-2)}
+#chartLegend span{display:inline-flex;align-items:center;gap:6px}
+#chartLegend i{width:10px;height:10px;border-radius:2px}
+#tlRead{margin:12px 0 4px;font-size:13px;color:var(--ink-2)}
+#tlRead b{color:var(--ink);font-weight:500}
+table.tb{border-collapse:collapse;font:12px var(--mono);font-variant-numeric:tabular-nums;width:100%}
+table.tb th,table.tb td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--line-soft);color:var(--ink-2);white-space:nowrap}
+table.tb th:first-child,table.tb td:first-child{text-align:left}
+.scroll-x{overflow-x:auto}
+.list{border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.list .li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:9px 13px;border-top:1px solid var(--line-soft);text-align:left}
+.list .li:first-child{border-top:0}
+.list button.li:hover{background:var(--raised)}
+.list .li small{color:var(--ink-3);font:11px var(--mono)}
+.list .li .t{min-width:0;overflow-wrap:anywhere}
+.sec{margin:22px 0 8px}
+
+/* Projects, Inbox, Sources */
+.prow{display:grid;grid-template-columns:minmax(0,1.6fr) 130px 70px 110px;gap:12px;align-items:center;width:100%;padding:9px 13px;border-top:1px solid var(--line-soft);text-align:left}
+.prow:first-child{border-top:0}
+.prow:hover{background:var(--raised)}
+.prow small{color:var(--ink-3);font:11px var(--mono)}
+.inrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;align-items:center;padding:10px 13px;border-top:1px solid var(--line-soft)}
+.inrow:first-child{border-top:0}
+.inrow .acts{display:flex;gap:6px;flex-wrap:wrap}
+.inrow .btn{padding:4px 10px;font-size:12px}
+.src{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.src>div{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:14px}
+.src h4{margin:0 0 2px;font:600 14px var(--display)}
+.src p{margin:6px 0 10px;color:var(--ink-2);font-size:13px}
+
+/* Drawer */
+#drawer{position:absolute;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--surface);border-left:1px solid var(--line);padding:18px var(--gr) 28px 20px;overflow:auto;transform:translateX(102%);transition:transform .22s ease;z-index:20}
+#drawer.open{transform:none}
+#drawer .x{position:absolute;right:var(--gr);top:12px;width:30px;height:30px;border-radius:8px;font-size:18px;color:var(--ink-3)}
+#drawer .x:hover{background:var(--raised);color:var(--ink)}
+#drawer h2{font-size:20px;margin:6px 34px 6px 0}
+#drawer .meta{display:flex;flex-wrap:wrap;gap:4px 12px;font:11.5px var(--mono);color:var(--ink-3)}
+#drawer p{color:var(--ink-2);max-width:60ch}
+#drawer h5{margin:18px 0 6px}
+#drawer .acts{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.ref{display:block;width:100%;text-align:left;padding:7px 9px;border-radius:8px;color:var(--ink-2)}
+.ref:hover{background:var(--raised);color:var(--ink)}
+.ref small{display:block;font:11px var(--mono);color:var(--ink-3)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;font:11px var(--mono);color:var(--ink-2)}
+
+#tip{position:fixed;left:0;top:0;z-index:40;pointer-events:none;max-width:280px;padding:7px 10px;border-radius:8px;background:rgba(6,6,7,.94);border:1px solid var(--line);font-size:12.5px;will-change:transform}
+#tip small{display:block;font:11px var(--mono);color:var(--ink-3);margin-top:2px}
+#tip .tr{display:flex;justify-content:space-between;gap:14px;font:11.5px var(--mono);color:var(--ink-2)}
+#tip .tr i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:6px}
+#pal{position:absolute;inset:0;z-index:50;background:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:flex-start;padding:12vh var(--gr) 0 var(--gl)}
+#pal>div{width:min(560px,100%);background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+#palIn{width:100%;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);font:15px var(--text);padding:14px 16px;outline:none}
+#palOut{max-height:52vh;overflow:auto}
+#palOut .ref{border-radius:0;padding:9px 16px}
+#palOut .ref.sel{background:var(--raised)}
+#toast{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;padding:9px 14px;border-radius:8px;background:var(--ink);color:#000;font-size:13px;max-width:calc(100% - 32px)}
+
+@media (max-width:1100px){ .board{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:820px){
+  #app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  #nav{order:2;flex-direction:row;gap:0;padding:6px var(--gr) 6px var(--gl);border-right:0;border-top:1px solid var(--line-soft);overflow-x:auto}
+  #brand,#searchBtn kbd,#demoNote,#nav .sp{display:none}
+  #searchBtn{margin:0;border:0;padding:8px 10px}
+  #nav button.nv{flex:1 0 auto;justify-content:center;gap:5px;padding:8px 9px;font-size:12.5px}
+  .view{padding:18px var(--gr) 30px var(--gl)}
+  .board{grid-template-columns:minmax(0,1fr)}
+  .live .row{grid-template-columns:minmax(0,1fr)}
+  body.at-timeline #stage{display:none}
+  #v-timeline{right:0}
+  #bTop{left:var(--gl);right:84px}
+  #vp{display:none;left:var(--gl);right:var(--gr);top:52px;width:auto;max-height:62%}
+  #vp.open{display:block}
+  #vpBtn{display:inline-flex}
+  #legend{left:var(--gl);right:var(--gr);width:auto;max-height:118px;bottom:10px}
+  #bHint{display:none}
+  .prow{grid-template-columns:minmax(0,1fr) auto}
+  .prow .hide-s{display:none}
+  #drawer{top:auto;height:78%;width:100%;border-left:0;border-top:1px solid var(--line);border-radius:14px 14px 0 0;transform:translateY(102%);padding-left:var(--gl)}
+}
+@media (prefers-reduced-motion:reduce){ #drawer,.tg::after{transition:none} }
+</style>
+
+</head>
+<body>
+<div id="app">
+  <nav id="nav" aria-label="Sections">
+    <div id="brand">Second Brain OS<small>demo data · mockup</small></div>
+    <button id="searchBtn" aria-label="Search"><span>Search</span><kbd>⌘K</kbd></button>
+    <button class="nv" data-view="now"><span>Now</span><span class="badge" id="bdNow"></span></button>
+    <button class="nv" data-view="brain"><span>Brain</span></button>
+    <button class="nv" data-view="timeline"><span>Timeline</span></button>
+    <button class="nv" data-view="projects"><span>Projects</span><span class="badge" id="bdProj"></span></button>
+    <button class="nv" data-view="inbox"><span>Inbox</span><span class="badge" id="bdInbox"></span></button>
+    <button class="nv" data-view="sources"><span>Sources</span></button>
+    <div class="sp"></div>
+    <div id="demoNote">Everything here is generated example data. Nothing is imported or saved.</div>
+  </nav>
+
+  <main id="main">
+    <div id="stage"><canvas id="gl"></canvas><div id="labels"></div><div id="ring" hidden></div></div>
+
+    <section class="view" id="v-now"></section>
+
+    <section class="view" id="v-brain">
+      <div id="bTop"><span id="bCount" class="glass"></span><span id="bChips"></span></div>
+      <button id="vpBtn" class="btn glass">View</button>
+      <div id="vp" class="glass">
+        <h4 class="cap">Form</h4>
+        <div class="seg" id="formSeg">
+          <button data-form="anatomy">Anatomy</button><button data-form="spheres">Spheres</button><button data-form="rings">Rings</button><button data-form="ribbon">Ribbon</button>
+        </div>
+        <p id="formNote"></p>
+        <h4 class="cap">Group and colour by</h4>
+        <select id="groupBy" aria-label="Group and colour by">
+          <option value="area">Area of life</option><option value="project">Project</option><option value="source">Source</option>
+          <option value="type">What it is</option><option value="status">Project status</option><option value="year">Year</option>
+        </select>
+        <h4 class="cap">Show</h4>
+        <div class="row"><span>Labels</span><button class="tg" id="tLabels" aria-pressed="true" aria-label="Labels"></button></div>
+        <div class="row"><span>Links of the hovered item</span><button class="tg" id="tLinks" aria-pressed="true" aria-label="Links"></button></div>
+        <div class="row"><span>Spine and nerves</span><button class="tg" id="tScaf" aria-pressed="true" aria-label="Spine and nerves"></button></div>
+        <div class="row"><span>Turning</span><button class="tg" id="tTurn" aria-pressed="true" aria-label="Turning"></button></div>
+        <h4 class="cap">Drawn</h4>
+        <div class="row"><label for="sSize">Point size</label><input type="range" id="sSize" min="0.5" max="2.2" step="0.01" value="1"></div>
+        <div class="row"><label for="sGlow">Glow</label><input type="range" id="sGlow" min="0" max="2" step="0.01" value="0.35"></div>
+        <div class="row" style="margin-top:8px"><button class="btn" id="bReset">Reset view</button><button class="btn" id="bClear">Clear filters</button></div>
+      </div>
+      <div id="legend" class="glass"></div>
+      <div id="bHint"></div>
+    </section>
+
+    <section class="view" id="v-timeline"></section>
+    <section class="view" id="v-projects"></section>
+    <section class="view" id="v-inbox"></section>
+    <section class="view" id="v-sources"></section>
+
+    <aside id="drawer" aria-label="Details"></aside>
+    <div id="pal" hidden><div><input id="palIn" placeholder="Search projects and items…" autocomplete="off" spellcheck="false" aria-label="Search"><div id="palOut"></div></div></div>
+    <div id="toast" hidden></div>
+  </main>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+"use strict";
+/* Second Brain OS — clickable mockup. One record of items (chats, notes, files), several views over it.
+   Sections: 1 demo data · 2 layouts · 3 renderer · 4 camera, picking, filters · 5 pages · 6 drawer, search, routing */
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v, TAU = Math.PI*2, fmt = n => n.toLocaleString("en-US");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function hash(n){ n = (n ^ 61) ^ (n >>> 16); n = (n + (n << 3)) | 0; n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15; return n >>> 0; }
+function rngF(seed){ let s = seed>>>0; return () => { s = (s + 0x6D2B79F5)>>>0; let t = s; t = Math.imul(t ^ (t>>>15), t|1); t ^= t + Math.imul(t ^ (t>>>7), t|61); return ((t ^ (t>>>14))>>>0)/4294967296; }; }
+const R = rngF(20261117), gauss = () => { let u = 0; while(u < 1e-7) u = R(); return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*R()); };
+const hex = h => [parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255];
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ------------------------------------------------------------ 1. DEMO DATA */
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const NM = 71, NOW_TM = 70+16/30;                         // months since Jan 2021; "today" is 17 Nov 2026
+const AREAS = [["Work","#3987e5"],["Passion projects","#d95926"],["Learning","#199e70"],["Money","#c98500"],["Personal life","#d55181"],["Homelab & tech","#0ca30c"],["Health","#9085e9"],["Unsorted","#8d8c85"]];
+const SOURCES = [["Claude Code","#d95926"],["Claude","#c98500"],["ChatGPT","#199e70"],["Grok","#9085e9"],["Notes","#d55181"],["Files","#3987e5"]];
+const TYPES = [["Conversation","#3987e5"],["Decision","#0ca30c"],["Question","#c98500"],["Idea","#9085e9"],["Task","#d95926"],["Note","#199e70"],["File","#8d8c85"]];
+const STATUS = [["Waiting on you","#fab219"],["Running","#0ca30c"],["Stalled","#ec835a"],["Done","#3987e5"],["No project","#8d8c85"]];
+const YEARS = [["2021","#1d4f91"],["2022","#2563b0"],["2023","#2f78cf"],["2024","#4a90e2"],["2025","#74abee"],["2026","#a5c8f5"]];
+const ym = s => (+s.slice(0,4)-2021)*12 + (+s.slice(5,7)-1);
+// name, area, status, start, end, weight, source mix [Claude Code, Claude, ChatGPT, Grok, Notes, Files], topics, what it is, next step
+const PROJ = [
+ ["Client portal redesign",0,0,"2026-06","2026-11",9,[5,3,1,0,1,2],["navigation model","login flow","design tokens","accessibility pass","handoff notes"],"A redesign of the customer portal: new navigation, a cleaner login, and a shared set of design tokens.","Pick one of the three navigation options the assistant drafted on Friday."],
+ ["Invoice automation",0,1,"2026-09","2026-11",5,[6,2,1,0,0,2],["PDF parsing","matching rules","error queue","export format","test invoices"],"Scripts that read supplier invoices and match them to purchase orders.","Session is running the matching tests against October's invoices."],
+ ["Quarterly reporting",0,3,"2024-01","2026-10",8,[0,2,5,0,1,4],["revenue summary","chart templates","variance notes","board deck","data pull"],"The recurring quarterly report: data pulls, charts and the written summary.","Nothing open. Next cycle starts in January."],
+ ["Hiring: frontend role",0,2,"2026-03","2026-07",3,[0,3,2,0,2,1],["job description","interview questions","take-home task","candidate notes","offer terms"],"Notes and drafts from hiring a frontend developer.","Decide whether to reopen the role or close it."],
+ ["Legacy API migration",0,3,"2023-02","2024-08",10,[4,1,5,0,1,2],["endpoint inventory","auth changes","rollback plan","load tests","deprecation notice"],"Moving the old REST API to the new service, endpoint by endpoint.","Finished in August 2024."],
+ ["Second brain particle field",1,1,"2026-10","2026-11",7,[6,3,0,3,0,1],["nervous system layout","particle shader","colour by area","reference videos","grouping modes"],"The particle view of everything you have written, shaped as a brain and spinal cord.","Review the new mockup and say which layouts to keep."],
+ ["Dashboard OS",1,0,"2026-11","2026-11",3,[2,4,0,1,1,0],["open loops board","import sources","project pages","privacy rules","homelab setup"],"One screen that tracks every chat and project across tools.","Answer four setup questions: hardware, privacy, sources, first personal data."],
+ ["Indie game prototype",1,2,"2025-01","2026-02",7,[5,2,2,0,1,1],["movement feel","level editor","save system","art direction","playtest notes"],"A small top-down game built in the evenings.","Last touched in February. Decide: revive or archive."],
+ ["Video essays",1,3,"2022-05","2024-03",5,[0,1,4,0,3,1],["script outline","b-roll list","thumbnail ideas","edit notes","upload checklist"],"Scripts and edit notes for a run of video essays.","Series ended March 2024."],
+ ["Grok bot experiments",1,1,"2026-08","2026-11",4,[1,0,0,7,1,0],["prompt variants","overnight runs","build comparisons","tool limits","result logs"],"Side-by-side builds and overnight runs with the Grok bot.","Compare last night's build against the Claude Code one."],
+ ["Machine learning course",2,3,"2023-09","2024-12",9,[1,2,5,0,3,1],["gradient descent","backpropagation","attention","evaluation","course project"],"Notes, questions and exercises from a year-long ML course.","Completed December 2024."],
+ ["Spanish B1",2,2,"2024-04","2026-05",5,[0,2,4,0,3,0],["past tenses","listening practice","vocabulary lists","speaking drills","exam format"],"Study notes and practice conversations for the B1 exam.","No activity since May. Rebook the exam or pause it."],
+ ["Shader programming",2,1,"2026-07","2026-11",5,[3,4,0,1,2,0],["point sprites","bloom passes","tone mapping","vertex animation","picking"],"Learning GPU shaders by building small particle demos.","Finish the picking exercise."],
+ ["Book notes",2,1,"2021-01","2026-11",8,[0,1,1,0,8,1],["chapter summary","quotes","argument map","reading list","review"],"Running notes on every book since 2021.","Write up the last two chapters of the current book."],
+ ["Journal",4,1,"2021-01","2026-11",10,[0,0,0,0,10,0],["morning pages","week review","gratitude","hard day","plans"],"Daily and weekly journal entries.","Weekly review is due on Sunday."],
+ ["Apartment move",4,3,"2025-03","2025-08",4,[0,2,3,0,2,2],["flat shortlist","lease terms","moving quotes","utilities","furniture list"],"Everything from the 2025 move: shortlist, lease, movers.","Done August 2025."],
+ ["Trip planning",4,0,"2026-10","2026-11",3,[0,3,2,1,1,0],["flight options","places to stay","day plans","packing list","budget"],"Planning the winter trip.","Choose between the two flight options before prices change."],
+ ["Family & friends",4,1,"2021-06","2026-11",5,[0,1,1,0,6,1],["birthday ideas","gift list","call notes","visit plans","shared photos"],"Notes about people: birthdays, gifts, things to remember.","Order the birthday gift this week."],
+ ["Half-marathon plan",6,0,"2026-05","2026-11",4,[0,2,2,1,3,0],["training plan","long run log","pace targets","injury notes","race day"],"A training plan and run log for a spring half-marathon.","Confirm next week's plan after the missed long run."],
+ ["Sleep & nutrition",6,2,"2024-01","2026-04",4,[0,2,3,0,3,0],["sleep log","meal prep","supplements","caffeine","check-up notes"],"Experiments with sleep and diet, with logs.","Quiet since April."],
+ ["Budget 2026",3,1,"2026-01","2026-11",4,[0,2,2,0,2,3],["monthly review","savings rate","subscriptions","big purchases","year plan"],"Monthly budget reviews for 2026.","November review."],
+ ["Tax filing",3,0,"2026-09","2026-11",2,[0,2,1,0,1,3],["documents needed","deductions","deadlines","accountant questions","receipts"],"This year's tax filing.","Upload the two missing documents the checklist flagged."],
+ ["Investing notes",3,3,"2022-01","2026-06",4,[0,1,3,1,3,1],["allocation","fund comparison","rebalancing","risk notes","reading"],"Notes on allocation and funds.","No open items."],
+ ["Homelab build",5,1,"2026-08","2026-11",6,[6,3,0,1,1,1],["hardware choice","storage layout","container setup","remote access","power draw"],"Building the home server that this dashboard will run on.","Session is setting up the container stack."],
+ ["Media server",5,0,"2026-10","2026-11",3,[3,2,0,1,1,0],["library layout","transcoding","drive dock","user accounts","backups"],"Local streaming from the homelab.","Decide the drive layout for the new dock."],
+ ["Backup strategy",5,2,"2026-09","2026-10",2,[1,3,0,0,1,0],["3-2-1 rule","off-site copy","encryption","restore test","schedule"],"A backup plan for the homelab.","Stalled on choosing an off-site destination."],
+ ["Home network",5,3,"2023-05","2025-11",4,[2,1,3,0,1,1],["router config","VLANs","DNS","VPN","Wi-Fi coverage"],"Network setup and fixes over two years.","Stable."]
+].map(p => ({name:p[0], area:p[1], status:p[2], s:ym(p[3]), e:ym(p[4]), w:p[5], mix:p[6], topics:p[7], blurb:p[8], next:p[9]}));
+const UNS_TOPICS = ["untitled chat","quick question","pasted screenshot","random idea","link to read","voice memo","scratch note","draft"];
+const NP = PROJ.length;
+const TYPE_BY_SRC = [[45,15,8,0,20,0,12],[40,15,20,15,10,0,0],[40,15,20,15,10,0,0],[40,15,20,15,10,0,0],[0,10,10,25,0,55,0],[0,0,0,0,0,15,85]];
+const pickW = w => { let s = 0; for(const x of w) s += x; let u = R()*s; for(let i=0;i<w.length;i++){ u -= w[i]; if(u <= 0) return i; } return w.length-1; };
+let NI = 0; for(const p of PROJ){ p.n = Math.round(p.w*100*clamp(Math.sqrt((p.e-p.s+1)/9), 0.42, 1.9)*(0.9+0.2*R())); p.start = NI; NI += p.n; }
+const N_UNS = 900, UNS_START = NI; NI += N_UNS;
+const iProj = new Int16Array(NI), iArea = new Uint8Array(NI), iSrc = new Uint8Array(NI), iType = new Uint8Array(NI), iStat = new Uint8Array(NI), iTm = new Float32Array(NI);
+PROJ.forEach((p, pi) => { const live = p.status < 2;
+  for(let k=0;k<p.n;k++){ const i = p.start+k; let tm;
+    if(live && R() < 0.07) tm = NOW_TM - R()*0.35;                        // a few items from the last ten days
+    else tm = p.s + (Math.min(p.e+0.97, NOW_TM)-p.s)*Math.pow(R(), live ? 0.62 : 0.9);
+    iProj[i] = pi; iArea[i] = p.area; iStat[i] = p.status; iTm[i] = clamp(tm, 0, NOW_TM); iSrc[i] = pickW(p.mix); iType[i] = pickW(TYPE_BY_SRC[iSrc[i]]); } });
+for(let i=UNS_START;i<NI;i++){ iProj[i] = -1; iArea[i] = 7; iStat[i] = 4; iTm[i] = clamp(NOW_TM - Math.pow(R(), 2.2)*14, 0, NOW_TM); iSrc[i] = pickW([2,4,3,2,3,2]); iType[i] = pickW(TYPE_BY_SRC[iSrc[i]]); }
+const MODS = ["first pass","follow-up","revisit","second attempt","notes","fix","plan","review","comparison","summary"];
+function title(i){ const h = hash(i*7919+13), p = iProj[i], topics = p < 0 ? UNS_TOPICS : PROJ[p].topics, t = topics[h % topics.length], T = t[0].toUpperCase()+t.slice(1);
+  switch(iType[i]){ case 0: return T+" — "+MODS[(h>>>8) % MODS.length]; case 1: return "Decided: "+t; case 2: return "Open question: "+t; case 3: return "Idea: "+t; case 4: return "To do: "+t; case 5: return "Note: "+t;
+    default: return t.toLowerCase().replace(/[^a-z0-9]+/g,"-")+"."+["md","pdf","py","png","csv"][(h>>>12) % 5]; } }
+const dateOf = tm => { const m = Math.floor(tm), d = 1+Math.floor((tm-m)*28); return d+" "+MON[m % 12]+" "+(2021+Math.floor(m/12)); };
+const ago = tm => { const d = Math.max(0, (NOW_TM-tm)*30.4); return d < 1 ? "today" : d < 2 ? "yesterday" : d < 14 ? Math.round(d)+" days ago" : d < 60 ? Math.round(d/7)+" weeks ago" : d < 700 ? Math.round(d/30.4)+" months ago" : (d/365).toFixed(1)+" years ago"; };
+function linksOf(i){ const out = [], p = iProj[i], k = 2+hash(i+5) % 3;
+  for(let j=0;j<k;j++){ const h = hash(i*31+j*977); let q = p;
+    if(p >= 0 && (h & 7) === 0){ const same = []; PROJ.forEach((x, xi) => { if(x.area === PROJ[p].area && xi !== p) same.push(xi); }); if(same.length) q = same[(h>>>5) % same.length]; }
+    const u = q < 0 ? UNS_START+(h>>>3) % N_UNS : PROJ[q].start+(h>>>3) % PROJ[q].n; if(u !== i && !out.includes(u)) out.push(u); }
+  return out; }
+function excerpt(i){ const p = iProj[i], t = (p < 0 ? UNS_TOPICS : PROJ[p].topics)[hash(i*7919+13) % (p < 0 ? UNS_TOPICS : PROJ[p].topics).length], n = 6+hash(i) % 40;
+  return ["You asked about "+t+". The assistant proposed an approach, you pushed back on one part, and the thread ended with a plan. "+n+" messages.",
+    "You settled "+t+" after comparing the options. The reasoning stays attached to the conversation it came from.",
+    "Still open: "+t+". Nothing later in the record answers it yet.",
+    "A thought about "+t+" you wrote down and have not acted on.",
+    "A next step for "+t+". Not marked done.",
+    "Your own note on "+t+".",
+    "A file saved alongside the work on "+t+"."][iType[i]]; }
+PROJ.forEach(p => { let last = 0; for(let k=0;k<p.n;k++) last = Math.max(last, iTm[p.start+k]); p.last = last;
+  const of = tp => { const a = []; for(let k=0;k<p.n && a.length<40;k++) if(iType[p.start+k] === tp) a.push(p.start+k); return a.sort((x, y) => iTm[y]-iTm[x]).slice(0, 3); };
+  p.openQ = p.status === 3 ? 0 : 1+hash(p.start+7) % 5; p.questions = of(2).slice(0, Math.min(3, p.openQ)); p.decisions = of(1); });
+
+/* grouping: what a cluster is, and its colour */
+const GROUPS = {
+  area:   {name:"Area of life",   meta:AREAS,   of:i => iArea[i]},
+  project:{name:"Project",        meta:[["Unsorted","#8d8c85"]].concat(PROJ.map((p, k) => { const c = hex(AREAS[p.area][1]), f = 0.72+0.5*((k*5) % 7)/7; return [p.name, "#"+c.map(v => Math.round(clamp(v*f+0.05*(k % 3), 0, 1)*255).toString(16).padStart(2,"0")).join("")]; })), of:i => iProj[i]+1},
+  source: {name:"Source",         meta:SOURCES, of:i => iSrc[i]},
+  type:   {name:"What it is",     meta:TYPES,   of:i => iType[i]},
+  status: {name:"Project status", meta:STATUS,  of:i => iStat[i]},
+  year:   {name:"Year",           meta:YEARS,   of:i => Math.min(5, Math.floor(iTm[i]/12))}
+};
+const S = { form:"anatomy", by:"area", labels:true, links:true, scaf:true, turn:!reduced, size:1, glow:0.35 };
+const F = { group:null, project:null, range:null };       // filters: {by,val} | project index | [m0,m1]
+const match = i => (!F.group || GROUPS[F.group.by].of(i) === F.group.val) && (F.project === null || iProj[i] === F.project) && (!F.range || (iTm[i] >= F.range[0] && iTm[i] < F.range[1]));
+
+/* ------------------------------------------------------------ 2. LAYOUTS */
+const isBrain = i => { const t = iType[i]; return t === 1 || t === 2 || t === 3 || t === 5; };   // what you concluded sits in the brain; the raw trail sits in the body
+const yOf = t => 46-t*118;
+const rOf = t => { if(t < 0.08) return 3; const u = (t-0.08)/0.92; return 3*(1-u)+27*Math.pow(Math.sin(Math.PI*Math.pow(u, 0.72)), 0.85); };
+function rib(t, th0, f, o, k){ const rr = rOf(t), rad = 1.2+(rr-1.2)*f, th = th0+0.42*f; o[k] = Math.cos(th)*rad; o[k+1] = yOf(t)-5*f*f*(rr/27); o[k+2] = Math.sin(th)*rad*0.62; }
+let timeWarp = null;
+function buildWarp(){ const cnt = new Float32Array(NM+1); let tot = 0; for(let i=0;i<NI;i++) if(!isBrain(i)){ cnt[Math.min(NM, Math.floor(iTm[i]))]++; tot++; }
+  timeWarp = new Float32Array(NM+2); let acc = 0; for(let m=0;m<=NM;m++){ timeWarp[m] = acc/tot; acc += cnt[m]; } timeWarp[NM+1] = 1; }
+const tOfTime = tm => { const m = Math.min(NM, Math.floor(tm)), f = tm-m, rank = timeWarp[m]+(timeWarp[m+1]-timeWarp[m])*f; return 0.05+0.93*(1-(0.5*tm/NOW_TM+0.5*rank)); };   // newest at the top
+const SEED = [[6.5,62,13.5],[7,68,4],[7,67,-7],[12,57.5,-5],[6,60.5,-14.5],[12,55.5,7],[14,63,0]];   // brain region centre per area (right hemisphere; mirrored on the left)
+const sst = (a, b, x) => { x = clamp((x-a)/(b-a), 0, 1); return x*x*(3-2*x); };
+let areaShare = null;
+function brainPoint(area, anchor, o, k){ const sd = R() < 0.5 ? -1 : 1; let px = 0, py = 0, pz = 0, best = 1e9, bx = 0, by = 0, bz = 0, got = 0;
+  for(let t=0;t<22 && got<2;t++){
+    let ex = (SEED[area][0]+gauss()*6.5)/15.5, ey = (SEED[area][1]+gauss()*6-60)/11.5, ez = (SEED[area][2]+gauss()*7.5-1)/19; const d = Math.sqrt(ex*ex+ey*ey+ez*ez) || 1e-3; ex /= d; ey /= d; ez /= d;
+    const ax = Math.abs(ex), fx = 1-0.16*Math.max(0, ez)-0.05*Math.max(0, -ez), fy = ey < 0 ? 0.72+0.33*sst(0.35, 0.7, ax)*(1-sst(0.45, 0.85, Math.abs(ez))) : 1;
+    const sx = ex*15.5*fx, sy = 60+ey*11.5*fy, sz = 1+ez*19;
+    const r1 = Math.sin(1.0*sz+2.3*Math.sin(0.42*sy+0.3*Math.abs(sx))+area*1.3), r2 = Math.sin(0.9*sy+2.0*Math.sin(0.5*sz)+0.8*Math.abs(sx));
+    const deep = R() < 0.12, sh = deep ? 0.35+0.55*Math.sqrt(R()) : (0.93+0.07*R())*(0.985+0.035*Math.abs(r1));
+    px = Math.abs(sx)*sh; py = 60+(sy-60)*sh; pz = 1+(sz-1)*sh; if(px < 0.5) px = 0.5+Math.abs(gauss())*0.5;
+    let nb = 0, nd = 1e9; for(let a=0;a<7;a++){ const q = ((Math.abs(sx)-SEED[a][0])**2+(sy-SEED[a][1])**2+(sz-SEED[a][2])**2)/(0.55+0.9*Math.sqrt(areaShare[a])); if(q < nd){ nd = q; nb = a; } }
+    if(nb !== area && t < 20) continue; if(!deep && (Math.abs(r1) < 0.34 || Math.abs(r2) < 0.2) && R() < 0.96) continue;
+    const q = (px-anchor[0])**2+(py-anchor[1])**2+(pz-anchor[2])**2; if(q < best){ best = q; bx = px; by = py; bz = pz; } got++; }
+  if(!got){ bx = px; by = py; bz = pz; } o[k] = bx*sd; o[k+1] = by; o[k+2] = bz; }
+function cerebellum(o, k){ const sd = R() < 0.5 ? -1 : 1; let px = 0, py = 0, pz = 0;
+  for(let t=0;t<6;t++){ const z = R()*2-1, a = R()*TAU, s = Math.sqrt(1-z*z), r = Math.cbrt(R()); px = 4.9+s*Math.cos(a)*r*5; py = 49+z*r*3.7; pz = -9.5+s*Math.sin(a)*r*4.8; if(Math.sin(py*4.2+0.9*Math.sin(px*0.7)+0.5*pz) > -0.1 || R() < 0.06) break; }
+  o[k] = Math.max(0.3, px)*sd; o[k+1] = py; o[k+2] = pz; }
+
+// scaffold: spinal cord, vertebrae, nerve ribs. Not items; never pickable.
+const RIBS = 24, RIBDOTS = 11, LEVELS = 92, scaf = [];
+const levelT = t => 0.05+Math.round((t-0.05)/0.93*LEVELS)/LEVELS*0.93;   // nerves leave the spine at fixed levels
+const ribAngle = (a, r) => Math.PI/2+a*TAU/8+(r-1)*TAU/RIBS;             // three nerves per area sector
+function buildScaffold(){ scaf.length = 0;
+  for(let k=0;k<700;k++){ const t = R(); scaf.push(gauss()*0.22, 47-t*118, gauss()*0.22, 0.95); }
+  for(let v=0;v<48;v++){ const y = 45.5-v*2.45; for(let a=0;a<14;a++){ const th = a/14*TAU; scaf.push(Math.cos(th)*1.5, y+Math.sin(th*2)*0.25, Math.sin(th)*1.1, 0.8); } for(let q=1;q<=4;q++) scaf.push(0, y-q*0.22, -1.1-q*0.5, 0.7); }
+  const o = [0,0,0];
+  for(let m=0;m<=LEVELS;m++){ const t = 0.05+m/LEVELS*0.93; for(let a=0;a<RIBS;a++){ const th = ribAngle(Math.floor(a/3), a % 3); for(let q=1;q<=RIBDOTS;q++){ rib(t, th, q/RIBDOTS, o, 0); scaf.push(o[0], o[1], o[2], 0.2); } } }
+  for(let k=0;k<260;k++){ const f = R(), a = R()*TAU, r = 1.2+2.2*(1-f); scaf.push(Math.cos(a)*r, 46+f*6.5, Math.sin(a)*r*0.8-f*1.5, 0.5); }   // brainstem
+}
+buildWarp(); buildScaffold();
+const NS = scaf.length/4, N = NI+NS;
+const pFrom = new Float32Array(N*3), pTo = new Float32Array(N*3), pCol = new Float32Array(N*3), pMisc = new Float32Array(N*4);   // misc: lit, magnitude, phase, kind
+for(let i=0;i<N;i++){ pMisc[i*4] = 1; pMisc[i*4+1] = i < NI ? Math.pow(R(), 3.2) : scaf[(i-NI)*4+3]; pMisc[i*4+2] = R(); pMisc[i*4+3] = i < NI ? 0 : 1; pCol[i*3] = pCol[i*3+1] = pCol[i*3+2] = 0.9; }
+let labels = [], extent = {w:40, h:70, cy:-6};
+const anatCache = new Float32Array(NI*3); let anatDirty = true;
+function layoutAnatomy(){
+  if(anatDirty){ const cnt = new Float32Array(8); let tot = 0; for(let i=0;i<NI;i++) if(isBrain(i)){ cnt[iArea[i]]++; tot++; } areaShare = cnt.map(c => c/Math.max(...cnt.slice(0,7)));
+    const anchors = []; for(let p=0;p<NP;p++){ const s = SEED[PROJ[p].area]; anchors.push([s[0]+gauss()*3.5, s[1]+gauss()*3, s[2]+gauss()*4]); }
+    for(let i=0;i<NI;i++){ const a = iArea[i], k = i*3;
+      if(isBrain(i)){ if(a === 7) cerebellum(anatCache, k); else brainPoint(a, anchors[iProj[i]], anatCache, k); }
+      else rib(levelT(tOfTime(iTm[i]))+gauss()*0.0012, ribAngle(a, hash(i*3+1) % 3)+gauss()*0.035, 0.1+0.9*Math.pow(R(), 0.6), anatCache, k); }
+    anatDirty = false; }
+  pTo.set(anatCache);
+  labels = []; for(let y=0;y<6;y++){ const t = tOfTime(y*12+0.01); labels.push({t:String(2021+y), p:[-(rOf(t)+7), yOf(t), 0], c:"yr"}); }
+  if(S.by === "area") for(let a=0;a<7;a++) labels.push({t:AREAS[a][0], p:[SEED[a][0]*1.9+5, 60+(SEED[a][1]-60)*1.7, 1+(SEED[a][2]-1)*1.45], c:""});
+  extent = {w:40, h:80, cy:0};
+}
+function groupStats(){ const g = GROUPS[S.by], n = g.meta.length, cnt = new Int32Array(n); for(let i=0;i<NI;i++) cnt[g.of(i)]++; return cnt; }
+function layoutSpheres(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
+  const rad = new Float32Array(n), cx = new Float32Array(n), cy = new Float32Array(n), cz = new Float32Array(n); let acc = 0;
+  ord.forEach((k, j) => { rad[k] = 1.9*Math.cbrt(cnt[k])+1.5; const r = 1.25*Math.sqrt(acc), a = j*2.39996; cx[k] = Math.cos(a)*r; cy[k] = Math.sin(a)*r*0.72; cz[k] = ((hash(k*77+3) % 100)/100-0.5)*24; acc += rad[k]*rad[k]; });
+  for(let it=0;it<160;it++) for(let a=0;a<ord.length;a++) for(let b=a+1;b<ord.length;b++){ const i = ord[a], j = ord[b]; let dx = cx[j]-cx[i], dy = cy[j]-cy[i]; const d = Math.hypot(dx, dy) || 0.01, need = (rad[i]+rad[j])*1.12;
+    if(d < need){ const p = (need-d)/d*0.5; dx *= p; dy *= p; cx[i] -= dx; cy[i] -= dy; cx[j] += dx; cy[j] += dy; } }
+  let mx = 0, my = 0; for(const k of ord){ mx = Math.max(mx, Math.abs(cx[k])+rad[k]); my = Math.max(my, Math.abs(cy[k])+rad[k]); }
+  for(let i=0;i<NI;i++){ const k = g.of(i), z = R()*2-1, a = R()*TAU, s = Math.sqrt(1-z*z), r = rad[k]*(R() < 0.25 ? 0.92+0.1*R() : Math.cbrt(R())*0.95); pTo[i*3] = cx[k]+s*Math.cos(a)*r; pTo[i*3+1] = cy[k]+s*Math.sin(a)*r; pTo[i*3+2] = cz[k]+z*r; }
+  labels = ord.slice(0, 30).map(k => ({t:g.meta[k][0], p:[cx[k], cy[k]+rad[k]+1.5, cz[k]], c:""})); extent = {w:mx+6, h:my+8, cy:0};
+}
+function layoutRings(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
+  const r0 = new Float32Array(n), w = new Float32Array(n); let sum = 0; for(const k of ord){ w[k] = Math.max(1.6, Math.sqrt(cnt[k])); sum += w[k]; } let acc = 9; for(const k of ord){ w[k] = w[k]/sum*52; r0[k] = acc; acc += w[k]; }
+  const ang = tm => Math.PI/2-(0.03+0.94*tm/(NM+1))*TAU;                 // clockwise from the top, with a gap between Nov 2026 and Jan 2021
+  for(let i=0;i<NI;i++){ const k = g.of(i), m = Math.floor(iTm[i]), a = ang(m+0.08+R()*0.84), r = r0[k]+w[k]*(0.06+0.86*R()); pTo[i*3] = Math.cos(a)*r; pTo[i*3+1] = Math.sin(a)*r; pTo[i*3+2] = gauss()*0.5; }
+  labels = []; for(let y=0;y<6;y++){ const a = ang(y*12+6); labels.push({t:String(2021+y), p:[Math.cos(a)*(acc+5), Math.sin(a)*(acc+5), 0], c:"yr"}); }
+  if(ord.length <= 9) ord.forEach(k => labels.push({t:g.meta[k][0], p:[0.8, r0[k]+w[k]/2, 0], c:""})); extent = {w:acc+10, h:acc+9, cy:0};
+}
+function layoutRibbon(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
+  const y0 = new Float32Array(n), h = new Float32Array(n); let sum = 0; for(const k of ord){ h[k] = Math.max(1.4, Math.sqrt(cnt[k])); sum += h[k]; } const H = Math.min(78, 22+ord.length*3.4); let acc = H/2; for(const k of ord){ h[k] = h[k]/sum*H; acc -= h[k]; y0[k] = acc; }
+  const W = 156, xOf = tm => (tm/(NM+1)-0.5)*W;
+  for(let i=0;i<NI;i++){ const k = g.of(i), m = Math.floor(iTm[i]); pTo[i*3] = xOf(m+0.1+R()*0.8); pTo[i*3+1] = y0[k]+h[k]*(0.1+0.8*R()); pTo[i*3+2] = gauss()*0.4; }
+  labels = []; for(let y=0;y<6;y++) labels.push({t:String(2021+y), p:[xOf(y*12+6), -H/2-4, 0], c:"yr"});
+  if(ord.length <= 12) ord.forEach(k => labels.push({t:g.meta[k][0], p:[-W/2-2, y0[k]+h[k]/2, 0], c:"", right:true})); extent = {w:W/2+(ord.length <= 12 ? 26 : 6), h:H/2+8, cy:-1};
+}
+const NOTES = {
+  anatomy:"Brain: what you concluded (decisions, ideas, questions, notes), one region per area. Body: the raw trail of chats, tasks and files, newest at the top of the spine.",
+  spheres:"One ball per group, sized by how much is in it.",
+  rings:"A clock of your record. Time runs clockwise from January 2021; each group is its own ring.",
+  ribbon:"A timeline. Time runs left to right; each group is its own row."
+};
+let T = 1;                                                // transition progress
+const wOf = i => { const w = clamp(T*1.5-pMisc[i*4+2]*0.5, 0, 1); return w*w*(3-2*w); };
+function colourize(){ const g = GROUPS[S.by], cols = g.meta.map(m => hex(m[1]).map(v => Math.min(1, v*1.12+0.06)));
+  for(let i=0;i<NI;i++){ const c = cols[g.of(i)]; pCol[i*3] = c[0]; pCol[i*3+1] = c[1]; pCol[i*3+2] = c[2]; } }
+function relit(){ const any = F.group || F.project !== null || F.range; let n = 0;
+  for(let i=0;i<NI;i++){ const m = !any || match(i); pMisc[i*4] = m ? 1 : 0.085; if(m) n++; }
+  for(let i=NI;i<N;i++) pMisc[i*4] = any ? 0.35 : 1; return n; }
+function applyLayout(animate){
+  for(let i=0;i<N;i++){ const w = wOf(i), k = i*3; pFrom[k] += (pTo[k]-pFrom[k])*w; pFrom[k+1] += (pTo[k+1]-pFrom[k+1])*w; pFrom[k+2] += (pTo[k+2]-pFrom[k+2])*w; }
+  ({anatomy:layoutAnatomy, spheres:layoutSpheres, rings:layoutRings, ribbon:layoutRibbon})[S.form]();
+  for(let i=0;i<NS;i++){ const k = (NI+i)*3; pTo[k] = scaf[i*4]; pTo[k+1] = scaf[i*4+1]; pTo[k+2] = scaf[i*4+2]; }
+  colourize(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false);
+  $("#formNote").textContent = NOTES[S.form]; $("#bHint").textContent = "Hover a speck to read it · click to open · drag to turn · scroll to zoom";
+}
+
+/* ------------------------------------------------------------ 3. RENDERER */
+const canvas = $("#gl"), gl = canvas.getContext("webgl2", {antialias:false, alpha:false, depth:false, stencil:false, powerPreference:"high-performance"});
+const HDR = gl ? !!gl.getExtension("EXT_color_buffer_float") : false;
+function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prog(vs, fs, attrs){ const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); (attrs || []).forEach((a, i) => gl.bindAttribLocation(p, i, a)); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for(let i=0;i<n;i++){ const x = gl.getActiveUniform(p, i); u[x.name] = gl.getUniformLocation(p, x.name); } return {p, u}; }
+let pP, pL, pD, pU, pC, vaoP, vaoL, vaoF, bFrom, bTo, bCol, bMisc, bLine;
+const MAXV = 8*16*2, lineData = new Float32Array(MAXV*7); let lineVerts = 0;
+function initGL(){
+  pP = prog(`#version 300 es
+precision highp float;
+in vec3 aFrom; in vec3 aTo; in vec3 aCol; in vec4 aMisc;
+uniform mat4 uVP; uniform float uT, uTime, uPx, uSize, uK, uGain, uScaf, uDist;
+out vec3 vCol;
+void main(){
+  float ph=aMisc.z, w=clamp(uT*1.5-ph*0.5,0.0,1.0); w=w*w*(3.0-2.0*w);
+  vec3 d=aTo-aFrom, P=mix(aFrom,aTo,w);
+  P+=normalize(cross(d+vec3(0.001),vec3(0.3,1.0,0.2)))*sin(3.14159*w)*length(d)*0.16*(ph-0.5);   // flights arc a little, so a regroup reads as streaks
+  P+=0.22*vec3(sin(uTime*0.7+ph*40.0),sin(uTime*0.6+ph*70.0),sin(uTime*0.5+ph*90.0));
+  vec4 clip=uVP*vec4(P,1.0); gl_Position=clip;
+  float depth=max(clip.w,0.01), mag=aMisc.y, scaf=aMisc.w;
+  float size=uSize*mix(1.0+1.3*mag,0.7,scaf)*pow((uPx/depth)/uK,0.45), a=1.0;
+  if(size<1.1){ a*=max(size*size/1.21,0.4); size=1.1; }
+  gl_PointSize=min(size,40.0);
+  float tw=1.0+0.18*sin(uTime*(1.0+2.5*fract(ph*7.31))+ph*6.2831);
+  float inten=mix(0.55+1.9*mag*mag,mag,scaf)*aMisc.x*mix(1.0,uScaf,scaf)*tw*uGain*a*clamp(1.3-0.4*depth/uDist,0.6,1.2);
+  vec3 c=mix(aCol,vec3(1.0),clamp(mag*0.35,0.0,0.6)); vCol=c*inten;
+}`, `#version 300 es
+precision mediump float; in vec3 vCol; out vec4 o;
+void main(){ vec2 p=gl_PointCoord*2.0-1.0; float d2=dot(p,p); if(d2>1.0) discard; o=vec4(vCol*exp(-d2*4.2),1.0); }`, ["aFrom","aTo","aCol","aMisc"]);
+  pL = prog(`#version 300 es
+in vec3 aP; in vec4 aC; uniform mat4 uVP; out vec4 vC; void main(){ gl_Position=uVP*vec4(aP,1.0); vC=aC; }`, `#version 300 es
+precision mediump float; in vec4 vC; out vec4 o; void main(){ o=vec4(vC.rgb*vC.a,1.0); }`, ["aP","aC"]);
+  const VF = `#version 300 es
+out vec2 vUv; void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); vUv=p; gl_Position=vec4(p*2.0-1.0,0.0,1.0); }`;
+  pD = prog(VF, `#version 300 es
+precision highp float; in vec2 vUv; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o;
+void main(){ vec3 c=texture(uTex,vUv).rgb*4.0; c+=texture(uTex,vUv+uTexel*vec2(-1.0,-1.0)).rgb+texture(uTex,vUv+uTexel*vec2(1.0,-1.0)).rgb+texture(uTex,vUv+uTexel*vec2(-1.0,1.0)).rgb+texture(uTex,vUv+uTexel*vec2(1.0,1.0)).rgb; o=vec4(c/8.0,1.0); }`);
+  pU = prog(VF, `#version 300 es
+precision highp float; in vec2 vUv; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o;
+void main(){ vec2 d=uTexel; vec3 c=texture(uTex,vUv).rgb*4.0; c+=(texture(uTex,vUv+vec2(d.x,0.0)).rgb+texture(uTex,vUv-vec2(d.x,0.0)).rgb+texture(uTex,vUv+vec2(0.0,d.y)).rgb+texture(uTex,vUv-vec2(0.0,d.y)).rgb)*2.0;
+  c+=texture(uTex,vUv+d).rgb+texture(uTex,vUv-d).rgb+texture(uTex,vUv+vec2(d.x,-d.y)).rgb+texture(uTex,vUv+vec2(-d.x,d.y)).rgb; o=vec4(c/16.0*0.7,1.0); }`);
+  pC = prog(VF, `#version 300 es
+precision highp float; in vec2 vUv; uniform sampler2D uScene, uBloom; uniform float uGlow; out vec4 o;
+void main(){ vec3 s=texture(uScene,vUv).rgb, b=texture(uBloom,vUv).rgb; b*=smoothstep(0.0,0.05,max(b.r,max(b.g,b.b)));
+  vec3 c=(s+b*uGlow)*1.25; float l=max(c.r,max(c.g,c.b)), t=0.96*(1.0-exp(-l*0.9)); c=c*(t/max(l,1e-5)); c=mix(c,vec3(t),smoothstep(3.0,14.0,l)*0.6);
+  c=pow(c,vec3(1.0/1.9)); c=max(c-0.022,0.0)*1.0225; o=vec4(c,1.0); }`);
+  const buf = () => gl.createBuffer(); bFrom = buf(); bTo = buf(); bCol = buf(); bMisc = buf(); bLine = buf();
+  vaoP = gl.createVertexArray(); gl.bindVertexArray(vaoP);
+  [[bFrom,3],[bTo,3],[bCol,3],[bMisc,4]].forEach(([b, n], i) => { gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, n, gl.FLOAT, false, 0, 0); });
+  vaoL = gl.createVertexArray(); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferData(gl.ARRAY_BUFFER, lineData.byteLength, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
+  vaoF = gl.createVertexArray(); gl.bindVertexArray(null);
+}
+function uploadAll(){ if(!gl) return; for(const [b, d] of [[bFrom,pFrom],[bTo,pTo],[bCol,pCol],[bMisc,pMisc]]){ gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); } }
+function uploadMisc(){ if(!gl) return; gl.bindBuffer(gl.ARRAY_BUFFER, bMisc); gl.bufferData(gl.ARRAY_BUFFER, pMisc, gl.DYNAMIC_DRAW); }
+function target(w, h){ const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  if(HDR) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null); else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  for(const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR],[gl.TEXTURE_MAG_FILTER, gl.LINEAR],[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+  const fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0); return {tex, fbo, w, h}; }
+let scene = null, mips = [], cssW = 0, cssH = 0, pxr = 1;
+function resize(){ const w0 = canvas.clientWidth, h0 = canvas.clientHeight; if(!w0 || !h0) return false; const changed = w0 !== cssW || h0 !== cssH; cssW = w0; cssH = h0;
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(w0*dpr), h = Math.round(h0*dpr); if(scene && scene.w === w && scene.h === h) return true;
+  canvas.width = w; canvas.height = h; pxr = w/w0; if(scene){ gl.deleteTexture(scene.tex); gl.deleteFramebuffer(scene.fbo); } mips.forEach(m => { gl.deleteTexture(m.tex); gl.deleteFramebuffer(m.fbo); }); mips = [];
+  scene = target(w, h); let mw = w, mh = h; for(let i=0;i<4;i++){ mw = Math.max(1, mw>>1); mh = Math.max(1, mh>>1); mips.push(target(mw, mh)); } if(changed) homeCam(true); return true; }
+
+/* ------------------------------------------------------------ 4. CAMERA, PICKING, FILTERS */
+let view = "";
+const FOV = 42*Math.PI/180, proj = new Float32Array(16), viewM = new Float32Array(16), VP = new Float32Array(16);
+const cam = {yaw:0.35, pitch:0.06, dist:260, tg:[0,-4,0], gYaw:0.35, gPitch:0.06, gDist:260, gTg:[0,-4,0]};
+const flat = () => S.form === "rings" || S.form === "ribbon";
+const panelW = () => (view === "brain" && cssW > 820) ? 280 : 0;      // keep the figure clear of the View panel
+const insetB = () => (view === "brain" && cssW <= 820) ? 140 : 0, insetT = () => (view === "brain" && cssW <= 820) ? 48 : 0;   // phone: legend below, chips above
+function homeCam(keepAngle){ const H = cssH || 800, effH = H-insetB()-insetT(), asp = Math.max(0.3, ((cssW || 1200)-panelW())/effH), d = Math.max(extent.h, extent.w/asp)/Math.tan(FOV/2)*1.16*(H/effH);
+  cam.gDist = d; cam.gTg = [0, extent.cy, 0]; if(!keepAngle){ cam.gPitch = flat() ? 0 : S.form === "anatomy" ? 0.06 : 0.16; if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU; } }
+let down = false, clock = 0;
+function updateCam(dt){ const k = 1-Math.exp(-dt*6), ks = 1-Math.exp(-dt*3.4);
+  if(!down && S.turn && !reduced){ if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU+Math.sin(clock*0.25)*0.16; else cam.gYaw += dt*0.07; }
+  cam.gPitch = clamp(cam.gPitch, -1.4, 1.4); cam.gDist = clamp(cam.gDist, 14, 900);
+  cam.yaw += (cam.gYaw-cam.yaw)*k; cam.pitch += (cam.gPitch-cam.pitch)*k; cam.dist += (cam.gDist-cam.dist)*ks; for(let i=0;i<3;i++) cam.tg[i] += (cam.gTg[i]-cam.tg[i])*ks;
+  const cp = Math.cos(cam.pitch), e = [cam.tg[0]+cam.dist*cp*Math.sin(cam.yaw), cam.tg[1]+cam.dist*Math.sin(cam.pitch), cam.tg[2]+cam.dist*cp*Math.cos(cam.yaw)];
+  const t = 1/Math.tan(FOV/2), n = Math.max(0.5, cam.dist*0.02), f = 4000; proj.fill(0); proj[0] = t/(cssW/cssH); proj[5] = t; proj[8] = panelW()/cssW; proj[9] = -(insetB()-insetT())/cssH; proj[10] = (f+n)/(n-f); proj[11] = -1; proj[14] = 2*f*n/(n-f);
+  let zx = e[0]-cam.tg[0], zy = e[1]-cam.tg[1], zz = e[2]-cam.tg[2], l = 1/Math.hypot(zx, zy, zz); zx *= l; zy *= l; zz *= l; let xx = zz, xz = -zx; l = 1/(Math.hypot(xx, xz) || 1); xx *= l; xz *= l; const yx = zy*xz, yy = zz*xx-zx*xz, yz = -zy*xx;
+  viewM.set([xx,yx,zx,0, 0,yy,zy,0, xz,yz,zz,0, -(xx*e[0]+xz*e[2]), -(yx*e[0]+yy*e[1]+yz*e[2]), -(zx*e[0]+zy*e[1]+zz*e[2]), 1]);
+  for(let c=0;c<4;c++) for(let r=0;r<4;r++) VP[c*4+r] = proj[r]*viewM[c*4]+proj[4+r]*viewM[c*4+1]+proj[8+r]*viewM[c*4+2]+proj[12+r]*viewM[c*4+3]; }
+function project(x, y, z, o){ const w = VP[3]*x+VP[7]*y+VP[11]*z+VP[15]; if(w <= 0.05){ o[2] = -1; return o; } o[0] = ((VP[0]*x+VP[4]*y+VP[8]*z+VP[12])/w*0.5+0.5)*cssW; o[1] = (0.5-(VP[1]*x+VP[5]*y+VP[9]*z+VP[13])/w*0.5)*cssH; o[2] = w; return o; }
+const tp = [0,0,0];
+function pick(mx, my, thr){ if(T < 1) return -1; let best = -1, bd = thr*thr;
+  for(let i=0;i<NI;i++){ if(pMisc[i*4] < 0.5) continue; const k = i*3; project(pTo[k], pTo[k+1], pTo[k+2], tp); if(tp[2] < 0) continue; const dx = tp[0]-mx; if(dx > thr || dx < -thr) continue; const dy = tp[1]-my, d = dx*dx+dy*dy+tp[2]*1e-3; if(d < bd){ bd = d; best = i; } }
+  return best; }
+let hovered = -1, selected = -1, mouse = {x:0, y:0, in:false}, needPick = false;
+const ptrs = new Map(); let moved = 0, pinch = null;
+function bindInput(){
+  canvas.addEventListener("contextmenu", e => e.preventDefault());
+  canvas.addEventListener("pointerdown", e => { canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY, b:e.button, sh:e.shiftKey}); down = true; moved = 0; pinch = null; canvas.classList.add("drag"); hideTip(); });
+  canvas.addEventListener("pointermove", e => { const r = canvas.getBoundingClientRect(); mouse.x = e.clientX-r.left; mouse.y = e.clientY-r.top; mouse.cx = e.clientX; mouse.cy = e.clientY; mouse.in = true; const p = ptrs.get(e.pointerId);
+    if(!p){ if(e.pointerType === "mouse") needPick = true; return; } const dx = e.clientX-p.x, dy = e.clientY-p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx)+Math.abs(dy);
+    if(ptrs.size === 1){ if(p.b === 2 || p.sh) panBy(dx, dy); else { cam.gYaw -= dx*0.005; cam.gPitch += dy*0.005; } }
+    else if(ptrs.size === 2){ const [a, b] = [...ptrs.values()], d = Math.hypot(a.x-b.x, a.y-b.y), cx = (a.x+b.x)/2, cy = (a.y+b.y)/2; if(pinch){ cam.gDist *= pinch.d/Math.max(1, d); panBy(cx-pinch.cx, cy-pinch.cy); } pinch = {d, cx, cy}; } });
+  const end = e => { const p = ptrs.get(e.pointerId); if(!p) return; ptrs.delete(e.pointerId); pinch = null; if(ptrs.size) return; down = false; canvas.classList.remove("drag");
+    if(moved < 6 && e.type === "pointerup" && p.b === 0){ const r = canvas.getBoundingClientRect(), i = pick(e.clientX-r.left, e.clientY-r.top, e.pointerType === "mouse" ? 11 : 22); if(i >= 0) openItem(i); else { selected = -1; closeDrawer(); } } };
+  canvas.addEventListener("pointerup", end); canvas.addEventListener("pointercancel", end);
+  canvas.addEventListener("pointerleave", () => { mouse.in = false; hovered = -1; hideTip(); canvas.classList.remove("hot"); });
+  canvas.addEventListener("wheel", e => { e.preventDefault(); cam.gDist *= Math.exp(clamp(e.deltaMode === 1 ? e.deltaY*32 : e.deltaY, -240, 240)*0.0016); }, {passive:false});
+}
+function panBy(dx, dy){ const s = cam.dist*2*Math.tan(FOV/2)/cssH; for(let i=0;i<3;i++) cam.gTg[i] += (-dx*viewM[i*4]+dy*viewM[i*4+1])*s; }
+function doPick(){ needPick = false; if(down || !mouse.in) return; const i = pick(mouse.x, mouse.y, 10); hovered = i; canvas.classList.toggle("hot", i >= 0); if(i < 0){ hideTip(); return; }
+  showTip(mouse.cx, mouse.cy, esc(title(i))+"<small>"+esc((iProj[i] < 0 ? "Unsorted" : PROJ[iProj[i]].name)+" · "+SOURCES[iSrc[i]][0]+" · "+dateOf(iTm[i]))+"</small>"); }
+function showTip(x, y, html){ const t = $("#tip"); t.innerHTML = html; t.hidden = false; t.style.transform = `translate(${Math.min(x+14, innerWidth-t.offsetWidth-8)}px,${Math.min(y+16, innerHeight-t.offsetHeight-8)}px)`; }
+function hideTip(){ $("#tip").hidden = true; }
+function buildLines(){ lineVerts = 0; const src = hovered >= 0 ? hovered : selected; if(src < 0 || !S.links || T < 1) return; const a = src*3, A = [pTo[a], pTo[a+1], pTo[a+2]], cA = [pCol[a], pCol[a+1], pCol[a+2]];
+  for(const j of linksOf(src)){ const b = j*3, B = [pTo[b], pTo[b+1], pTo[b+2]], cB = [pCol[b], pCol[b+1], pCol[b+2]], d = Math.hypot(B[0]-A[0], B[1]-A[1], B[2]-A[2]);
+    const M = [(A[0]+B[0])/2, (A[1]+B[1])/2+d*0.12, (A[2]+B[2])/2+d*0.18]; let px = A[0], py = A[1], pz = A[2];
+    for(let s=1;s<=16;s++){ const t = s/16, u = 1-t, x = u*u*A[0]+2*u*t*M[0]+t*t*B[0], y = u*u*A[1]+2*u*t*M[1]+t*t*B[1], z = u*u*A[2]+2*u*t*M[2]+t*t*B[2]; if(lineVerts+2 > MAXV) return;
+      for(const [qx, qy, qz, tt] of [[px, py, pz, (s-1)/16],[x, y, z, t]]){ const o = lineVerts*7; lineData[o] = qx; lineData[o+1] = qy; lineData[o+2] = qz; lineData[o+3] = cA[0]+(cB[0]-cA[0])*tt; lineData[o+4] = cA[1]+(cB[1]-cA[1])*tt; lineData[o+5] = cA[2]+(cB[2]-cA[2])*tt; lineData[o+6] = 0.75; lineVerts++; }
+      px = x; py = y; pz = z; } } }
+let labelEls = [];
+function buildLabels(){ const root = $("#labels"); root.innerHTML = ""; labelEls = labels.map(l => { const d = document.createElement("div"); d.className = "lb "+l.c; d.textContent = l.t; root.append(d); return d; }); }
+function placeLabels(){ const show = S.labels && T >= 1; for(let i=0;i<labels.length;i++){ const l = labels[i], e = labelEls[i]; project(l.p[0], l.p[1], l.p[2], tp);
+    if(!show || tp[2] < 0){ e.style.opacity = 0; continue; } e.style.opacity = 1; e.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px) translate(${l.right ? "-100%" : "-50%"},-50%)`; }
+  const ring = $("#ring"); if(selected >= 0 && T >= 1){ const k = selected*3; project(pTo[k], pTo[k+1], pTo[k+2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; } else ring.hidden = true; }
+let tPrev = performance.now(), scafA = 1;
+function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now-tPrev)/1000); tPrev = now; clock += dt; if(!gl || !resize()) return;
+  if(T < 1) T = Math.min(1, T+dt/1.5); scafA += (((S.form === "anatomy" && S.scaf) ? 1 : 0)-scafA)*(1-Math.exp(-dt*4));
+  updateCam(dt); if(needPick) doPick(); buildLines(); placeLabels();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, scene.fbo); gl.viewport(0, 0, scene.w, scene.h); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+  gl.useProgram(pP.p); const U = pP.u; gl.uniformMatrix4fv(U.uVP, false, VP); gl.uniform1f(U.uT, T); gl.uniform1f(U.uTime, reduced ? 0 : clock); gl.uniform1f(U.uPx, scene.h/(2*Math.tan(FOV/2)));
+  gl.uniform1f(U.uSize, 1.75*S.size*pxr); gl.uniform1f(U.uK, 6*pxr); gl.uniform1f(U.uGain, (HDR ? 1.15 : 0.6)/Math.pow(Math.max(pxr, 0.5), 1.1)/Math.pow(S.size, 1.1)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist);
+  gl.bindVertexArray(vaoP); gl.drawArrays(gl.POINTS, 0, N);
+  if(lineVerts){ gl.useProgram(pL.p); gl.uniformMatrix4fv(pL.u.uVP, false, VP); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferSubData(gl.ARRAY_BUFFER, 0, lineData.subarray(0, lineVerts*7)); gl.drawArrays(gl.LINES, 0, lineVerts); }
+  gl.bindVertexArray(vaoF); gl.disable(gl.BLEND); gl.useProgram(pD.p); gl.uniform1i(pD.u.uTex, 0); let src = scene;
+  for(const m of mips){ gl.bindFramebuffer(gl.FRAMEBUFFER, m.fbo); gl.viewport(0, 0, m.w, m.h); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pD.u.uTexel, 1/src.w, 1/src.h); gl.drawArrays(gl.TRIANGLES, 0, 3); src = m; }
+  gl.enable(gl.BLEND); gl.useProgram(pU.p); gl.uniform1i(pU.u.uTex, 0);
+  for(let i=mips.length-1;i>0;i--){ const d = mips[i-1], s = mips[i]; gl.bindFramebuffer(gl.FRAMEBUFFER, d.fbo); gl.viewport(0, 0, d.w, d.h); gl.bindTexture(gl.TEXTURE_2D, s.tex); gl.uniform2f(pU.u.uTexel, 1/s.w, 1/s.h); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  gl.disable(gl.BLEND); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height); gl.useProgram(pC.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, scene.tex); gl.uniform1i(pC.u.uScene, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, mips[0].tex); gl.uniform1i(pC.u.uBloom, 1);
+  gl.uniform1f(pC.u.uGlow, S.glow); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.activeTexture(gl.TEXTURE0);
+}
+function filtersChanged(){ const n = relit(); uploadMisc(); $("#bCount").textContent = (F.group || F.project !== null || F.range) ? fmt(n)+" of "+fmt(NI)+" items lit" : fmt(NI)+" items";
+  const chips = []; if(F.group) chips.push(["group", GROUPS[F.group.by].name+": "+GROUPS[F.group.by].meta[F.group.val][0]]); if(F.project !== null) chips.push(["project", "Project: "+PROJ[F.project].name]); if(F.range) chips.push(["range", rangeText()]);
+  $("#bChips").innerHTML = chips.map(c => `<span class="chip">${esc(c[1])}<button data-clear="${c[0]}" aria-label="Remove filter">×</button></span>`).join(" "); renderLegend(); if(view === "timeline") renderTimeline(); return n; }
+const qName = q => "Q"+(q % 4+1)+" "+(2021+Math.floor(q/4));
+const rangeText = () => { const a = Math.round(F.range[0]/3), b = Math.round(F.range[1]/3)-1; return a === b ? qName(a) : qName(a)+" – "+qName(b); };
+function renderLegend(){ const g = GROUPS[S.by], cnt = groupStats(), ord = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") ord.sort((a, b) => cnt[b]-cnt[a]);
+  $("#legend").innerHTML = `<div class="cap"><span>${esc(g.name)}</span><span>${fmt(NI)}</span></div>`+ord.map(k => `<button data-val="${k}" class="${F.group && F.group.by === S.by && F.group.val === k ? "on" : ""}"><i class="dot" style="background:${g.meta[k][1]}"></i><span>${esc(g.meta[k][0])}</span><span class="num">${fmt(cnt[k])}</span></button>`).join(""); }
+
+/* ------------------------------------------------------------ 5. PAGES */
+const stPill = s => `<span class="st s${s}"><i></i>${STATUS[s][0]}</span>`;
+const areaTag = a => `<span class="area"><i class="dot" style="background:${AREAS[a][1]}"></i>${esc(AREAS[a][0])}</span>`;
+const LIVE = [[23,"Claude Code · terminal 2","Running: setting up the container stack. 14 minutes in.",1],[1,"Claude Code · terminal 1","Running: matching tests against October's invoices.",1],[5,"Claude Code · cloud session","Waiting on you: review the new mockup.",0],[9,"Grok bot · overnight run","Finished 06:12. Build is ready to compare.",0]];
+function renderNow(){ const by = [[],[],[],[]]; PROJ.forEach((p, i) => by[p.status].push(i)); by.forEach(a => a.sort((x, y) => PROJ[y].last-PROJ[x].last));
+  $("#bdNow").textContent = by[0].length; $("#bdProj").textContent = NP;
+  $("#v-now").innerHTML = `<header><h1>Now</h1><p>${by[0].length} things are waiting on you, ${by[1].length} are running and ${by[2].length} have stalled.</p></header>
+  <div class="live"><div class="hd cap">Sessions open right now</div>${LIVE.map(l => `<div class="row" data-proj="${l[0]}" tabindex="0"><b>${esc(PROJ[l[0]].name)}</b><span class="what">${esc(l[2])}</span><span class="st s${l[3] ? 1 : 0}"><i></i>${esc(l[1])}</span></div>`).join("")}</div>
+  <div class="board">${by.map((list, s) => `<div class="col"><h3>${stPill(s)}<span class="num">${list.length}</span></h3>${list.slice(0, s === 3 ? 5 : 9).map(i => { const p = PROJ[i]; return `<button class="card" data-proj="${i}"><h4>${esc(p.name)}</h4>${areaTag(p.area)}<div class="next"><b>${s === 3 ? "Outcome" : s === 2 ? "Why it stalled" : "Next step"}</b>${esc(p.next)}</div><div class="ft"><span>${ago(p.last)}</span><span>${fmt(p.n)} items</span><span>${p.openQ ? p.openQ+(p.openQ === 1 ? " open question" : " open questions") : "nothing open"}</span></div></button>`; }).join("")}${s === 3 && list.length > 5 ? `<button class="btn" data-go="projects">All ${list.length} finished projects</button>` : ""}</div>`).join("")}</div>`; }
+function renderProjects(){ $("#v-projects").innerHTML = `<header><h1>Projects</h1><p>Every project, grouped by area of life. Open one for its status, open questions and decisions.</p></header>`+
+  AREAS.slice(0, 7).map((a, ai) => { const list = PROJ.map((p, i) => i).filter(i => PROJ[i].area === ai).sort((x, y) => PROJ[y].last-PROJ[x].last); return `<h3 class="cap sec">${areaTag(ai)}</h3><div class="list">${list.map(i => { const p = PROJ[i]; return `<button class="prow" data-proj="${i}"><span>${esc(p.name)}</span>${stPill(p.status)}<small class="hide-s num">${fmt(p.n)}</small><small class="hide-s">${ago(p.last)}</small></button>`; }).join("")}</div>`; }).join(""); }
+let inbox = null;
+function renderInbox(){ if(!inbox){ inbox = []; for(let i=UNS_START;i<NI;i++) inbox.push(i); inbox.sort((a, b) => iTm[b]-iTm[a]); }
+  $("#bdInbox").textContent = inbox.length;
+  $("#v-inbox").innerHTML = `<header><h1>Inbox</h1><p>${fmt(inbox.length)} items came in without a project. Each has a suggested home; file it or leave it.</p></header><div class="list">${inbox.slice(0, 30).map(i => { const s = hash(i*17) % NP; return `<div class="inrow" data-item="${i}"><div><div>${esc(title(i))}</div><small class="num" style="color:var(--ink-3)">${SOURCES[iSrc[i]][0]} · ${dateOf(iTm[i])} · looks like <b style="color:var(--ink-2);font-weight:500">${esc(PROJ[s].name)}</b></small></div><div class="acts"><button class="btn" data-file="${i}" data-to="${s}">File under ${esc(PROJ[s].name)}</button><button class="btn" data-open="${i}">Open</button></div></div>`; }).join("")}</div><p style="color:var(--ink-3);margin-top:12px">Showing the 30 most recent.</p>`; }
+function renderSources(){ const cnt = new Int32Array(6); for(let i=0;i<NI;i++) cnt[iSrc[i]]++;
+  const how = ["Live. Session files are read as they are written, so running terminals show up on the Now board.","Manual export. You download your data from the app and drop the file here.","Manual export. You download your data from the app and drop the file here.","Manual export, if your account offers one. Not verified.","Live. A notes folder on the homelab is watched for changes.","Live. Chosen folders on the homelab are indexed; the files stay where they are."];
+  const last = ["a minute ago","3 days ago","5 weeks ago","2 weeks ago","an hour ago","an hour ago"];
+  $("#v-sources").innerHTML = `<header><h1>Sources</h1><p>Where the record comes from, and how fresh each source is.</p></header><div class="src">${SOURCES.map((s, k) => `<div><h4>${esc(s[0])}</h4><div class="cap">${fmt(cnt[k])} items · updated ${last[k]}</div><p>${how[k]}</p><button class="btn" data-toast="This is a mockup, so nothing is imported.">${k === 0 || k > 3 ? "Choose folders" : "Import an export file"}</button></div>`).join("")}</div>`; }
+
+/* Timeline: one stacked column per quarter, by area. Drag across it to light that span in the brain. */
+const NQ = 24; let tlTable = false, brush = null;
+function quarterCounts(){ const c = Array.from({length:NQ}, () => new Int32Array(8)); for(let i=0;i<NI;i++){ if(F.project !== null && iProj[i] !== F.project) continue; if(F.group && GROUPS[F.group.by].of(i) !== F.group.val) continue; c[Math.min(NQ-1, Math.floor(iTm[i]/3))][iArea[i]]++; } return c; }
+function renderTimeline(){ const c = quarterCounts(), tot = c.map(q => q.reduce((a, b) => a+b, 0)), max = Math.max(1, ...tot), step = [100,200,500,1000,2000,5000].find(s => max/s <= 5) || 5000, top = Math.ceil(max/step)*step;
+  const W = 720, H = 300, L = 44, B = 26, Tp = 10, pw = (W-L-6)/NQ, bw = pw-6, ph = H-B-Tp, y = v => Tp+ph-v/top*ph, r0 = F.range ? Math.round(F.range[0]/3) : 0, r1 = F.range ? Math.round(F.range[1]/3)-1 : NQ-1;
+  let svg = ""; for(let v=0;v<=top;v+=step) svg += `<line x1="${L}" x2="${W-6}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${fmt(v)}</text>`;
+  c.forEach((q, qi) => { let acc = 0; const x = L+qi*pw+3, dim = F.range && (qi < r0 || qi > r1);
+    for(let a=0;a<8;a++){ if(!q[a]) continue; const y1 = y(acc+q[a]), h = y(acc)-y1; if(h > 2.5) svg += `<rect x="${x}" y="${y1+1}" width="${bw}" height="${h-2}" rx="${Math.min(2, h/2)}" fill="${AREAS[a][1]}" opacity="${dim ? 0.25 : 1}"/>`; acc += q[a]; }
+    if(qi % 4 === 0) svg += `<text x="${x}" y="${H-8}">${2021+qi/4}</text>`; });
+  svg += `<rect id="brushRect" x="0" y="${Tp}" width="0" height="${ph}" fill="var(--ink)" opacity="0.1" pointer-events="none"/>`;
+  let n = 0; const pc = new Int32Array(NP); for(let i=0;i<NI;i++){ if(!match(i)) continue; n++; if(iProj[i] >= 0) pc[iProj[i]]++; } const topP = [...Array(NP).keys()].sort((a, b) => pc[b]-pc[a]).slice(0, 6).filter(i => pc[i]);
+  $("#v-timeline").innerHTML = `<header><h1>Timeline</h1><p>What you wrote and when, by area of life. Drag across the chart, or pick a year, to light that span in the brain.</p></header>
+  <div class="tlbar" role="group" aria-label="Year"><button class="btn ${F.range ? "" : "on"}" data-year="all">All</button>${YEARS.map((yv, k) => `<button class="btn ${F.range && F.range[0] === k*12 && F.range[1] === k*12+12 ? "on" : ""}" data-year="${k}">${yv[0]}</button>`).join("")}<button class="btn" data-table style="margin-left:auto">${tlTable ? "Chart" : "Table"}</button></div>
+  ${tlTable ? `<div class="scroll-x list"><table class="tb"><thead><tr><th>Quarter</th>${AREAS.map(a => `<th>${esc(a[0])}</th>`).join("")}<th>Total</th></tr></thead><tbody>${c.map((q, qi) => `<tr><td>${qName(qi)}</td>${[...q].map(v => `<td>${fmt(v)}</td>`).join("")}<td>${fmt(tot[qi])}</td></tr>`).join("")}</tbody></table></div>` :
+  `<div id="chartWrap"><svg id="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Items per quarter, stacked by area of life">${svg}</svg><div id="chartLegend">${AREAS.map(a => `<span><i style="background:${a[1]}"></i>${esc(a[0])}</span>`).join("")}</div></div>`}
+  <p id="tlRead"><b>${F.range ? rangeText() : "January 2021 to November 2026"}</b> · ${fmt(n)} items${F.project !== null ? " in "+esc(PROJ[F.project].name) : ""}</p>
+  <h3 class="cap sec">Most active in this span</h3><div class="list">${topP.map(i => `<button class="li" data-proj="${i}"><span class="t">${esc(PROJ[i].name)} <small>${esc(AREAS[PROJ[i].area][0])}</small></span><small class="num">${fmt(pc[i])}</small></button>`).join("") || `<div class="li"><span class="t">Nothing in this span.</span></div>`}</div>
+  <div style="margin-top:16px"><button class="btn" data-go="brain">Open this span in the Brain</button></div>`;
+  const ch = $("#chart"); if(!ch) return; const qAt = e => { const r = ch.getBoundingClientRect(); return clamp(Math.floor(((e.clientX-r.left)/r.width*W-L)/pw), 0, NQ-1); };
+  ch.onpointerdown = e => { ch.setPointerCapture(e.pointerId); const q = qAt(e); brush = [q, q]; paint(); };
+  ch.onpointercancel = () => { brush = null; filtersChanged(); };
+  const paint = () => { const a = Math.min(brush[0], brush[1]), b = Math.max(brush[0], brush[1]), br = $("#brushRect"); br.setAttribute("x", L+a*pw); br.setAttribute("width", (b-a+1)*pw);
+    F.range = [a*3, (b+1)*3]; const lit = relit(); uploadMisc(); $("#tlRead").innerHTML = `<b>${rangeText()}</b> · ${fmt(lit)} items`; };   // the brain lights up while you drag
+  ch.onpointermove = e => { const q = qAt(e); if(brush){ hideTip(); if(q !== brush[1]){ brush[1] = q; paint(); } return; }
+    showTip(e.clientX, e.clientY, `<b>${qName(q)}</b>`+[...c[q]].map((v, a) => v ? `<div class="tr"><span><i style="background:${AREAS[a][1]}"></i>${esc(AREAS[a][0])}</span><span>${fmt(v)}</span></div>` : "").join("")+`<div class="tr"><span>Total</span><span>${fmt(tot[q])}</span></div>`); };
+  ch.onpointerup = () => { if(!brush) return; brush = null; filtersChanged(); };
+  ch.onpointerleave = hideTip; }
+
+/* ------------------------------------------------------------ 6. DRAWER, SEARCH, ROUTING */
+const refBtn = i => `<button class="ref" data-open="${i}">${esc(title(i))}<small>${TYPES[iType[i]][0]} · ${SOURCES[iSrc[i]][0]} · ${dateOf(iTm[i])}</small></button>`;
+function openItem(i){ selected = i; const p = iProj[i], ls = linksOf(i);
+  $("#drawer").innerHTML = `<button class="x" aria-label="Close">×</button><div class="cap">${TYPES[iType[i]][0]}</div><h2>${esc(title(i))}</h2>
+  <div class="meta"><span>${SOURCES[iSrc[i]][0]}</span><span>${dateOf(iTm[i])}</span><span>${[0,4,6].includes(iType[i]) ? "you and an assistant" : "your words"}</span></div>
+  <p>${esc(excerpt(i))}</p>
+  <div class="acts">${p >= 0 ? `<button class="btn pri" data-proj="${p}">Open ${esc(PROJ[p].name)}</button>` : `<button class="btn pri" data-go="inbox">File it from the Inbox</button>`}<button class="btn" data-show-item="${i}">Find it in the Brain</button></div>
+  <h5 class="cap">Where it sits</h5><div class="meta" style="gap:6px"><span class="pill"><i class="dot" style="background:${AREAS[iArea[i]][1]}"></i>${esc(AREAS[iArea[i]][0])}</span><span class="pill">${p >= 0 ? esc(PROJ[p].name) : "No project"}</span><span class="pill">${isBrain(i) ? "Brain" : "Body, "+dateOf(iTm[i]).split(" ").slice(1).join(" ")}</span></div>
+  <h5 class="cap">Linked to ${ls.length}</h5>${ls.map(refBtn).join("")}<p style="font:11px var(--mono);color:var(--ink-4);margin-top:18px">Generated example content.</p>`;
+  $("#drawer").classList.add("open"); }
+function openProject(pi){ const p = PROJ[pi], sc = new Int32Array(6); let recent = []; for(let k=0;k<p.n;k++){ sc[iSrc[p.start+k]]++; recent.push(p.start+k); } recent = recent.sort((a, b) => iTm[b]-iTm[a]).slice(0, 5);
+  $("#drawer").innerHTML = `<button class="x" aria-label="Close">×</button><div class="cap">Project</div><h2>${esc(p.name)}</h2>
+  <div class="meta">${stPill(p.status)}<span>${dateOf(p.s).split(" ").slice(1).join(" ")} to ${dateOf(p.last).split(" ").slice(1).join(" ")}</span><span>${fmt(p.n)} items</span></div>
+  <div class="acts"><button class="btn pri" data-show-proj="${pi}">Light it up in the Brain</button><button class="btn" data-tl-proj="${pi}">See it on the Timeline</button></div>
+  <h5 class="cap">What it is</h5><p>${esc(p.blurb)}</p>
+  <h5 class="cap">Where it stands</h5><p>${["Waiting on you.","Running.","Stalled.","Finished."][p.status]} Last activity ${ago(p.last)}. ${esc(p.next)}</p>
+  <div class="meta" style="gap:6px"><span class="pill"><i class="dot" style="background:${AREAS[p.area][1]}"></i>${esc(AREAS[p.area][0])}</span>${[...sc].map((v, k) => v ? `<span class="pill">${SOURCES[k][0]} ${fmt(v)}</span>` : "").join("")}</div>
+  <h5 class="cap">Open questions · ${p.openQ}</h5>${p.questions.map(refBtn).join("") || "<p>None.</p>"}${p.openQ > 3 ? `<p style="color:var(--ink-3);font-size:12.5px">and ${p.openQ-3} more</p>` : ""}
+  <h5 class="cap">Key decisions</h5>${p.decisions.map(refBtn).join("") || "<p>None.</p>"}
+  <h5 class="cap">Most recent</h5>${recent.map(refBtn).join("")}
+  <p style="font:11px var(--mono);color:var(--ink-4);margin-top:18px">In the real system this page is written by a model, and every line links to the chat it came from.</p>`;
+  $("#drawer").classList.add("open"); }
+function closeDrawer(){ $("#drawer").classList.remove("open"); }
+let toastT = 0; function toast(s){ const t = $("#toast"); t.textContent = s; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600); }
+let titles = null, palSel = 0, palHits = [];
+function palSearch(){ const q = $("#palIn").value.trim().toLowerCase(); palHits = []; if(q){ PROJ.forEach((p, i) => { if(p.name.toLowerCase().includes(q)) palHits.push(["p", i]); });
+    if(!titles){ titles = new Array(NI); for(let i=0;i<NI;i++) titles[i] = title(i).toLowerCase(); } const hit = []; for(let i=0;i<NI && hit.length<400;i++) if(titles[i].includes(q)) hit.push(i); hit.sort((a, b) => iTm[b]-iTm[a]).slice(0, 8).forEach(i => palHits.push(["i", i])); }
+  palSel = 0; $("#palOut").innerHTML = palHits.map((h, k) => h[0] === "p" ? `<button class="ref ${k ? "" : "sel"}" data-proj="${h[1]}">${esc(PROJ[h[1]].name)}<small>Project · ${esc(AREAS[PROJ[h[1]].area][0])} · ${STATUS[PROJ[h[1]].status][0]}</small></button>` : refBtn(h[1]).replace('class="ref"', `class="ref ${k ? "" : "sel"}"`)).join("") || (q ? `<p style="padding:12px 16px;color:var(--ink-3)">Nothing matches “${esc(q)}”.</p>` : `<p style="padding:12px 16px;color:var(--ink-3)">Type a project name or a few words from a title.</p>`); }
+function palOpen(o){ $("#pal").hidden = !o; if(o){ $("#palIn").value = ""; palSearch(); $("#palIn").focus(); } }
+function go(v){ if(!["now","brain","timeline","projects","inbox","sources"].includes(v)) v = "now"; view = v; document.body.className = "at-"+v; $$(".view").forEach(e => e.classList.toggle("on", e.id === "v-"+v)); $$("#nav .nv").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  ({now:renderNow, projects:renderProjects, inbox:renderInbox, sources:renderSources, timeline:renderTimeline, brain:() => {}})[v](); hideTip(); cssW = 0; if(location.hash.slice(1) !== v){ try{ history.replaceState(null, "", "#"+v); }catch(e){} } }
+function setForm(f){ S.form = f; $$("#formSeg button").forEach(b => b.classList.toggle("on", b.dataset.form === f)); applyLayout(true); }
+document.addEventListener("click", e => { const t = e.target.closest("[data-view],[data-proj],[data-open],[data-go],[data-form],[data-val],[data-clear],[data-year],[data-table],[data-file],[data-toast],[data-show-proj],[data-show-item],[data-tl-proj],.x,.tg"); if(!t) { if(e.target.id === "pal") palOpen(false); return; }
+  const d = t.dataset;
+  if(t.classList.contains("x")) return closeDrawer();
+  if(t.classList.contains("tg")){ const on = t.getAttribute("aria-pressed") !== "true"; t.setAttribute("aria-pressed", on); ({tLabels:() => S.labels = on, tLinks:() => S.links = on, tScaf:() => S.scaf = on, tTurn:() => S.turn = on})[t.id](); return; }
+  if(d.view) return go(d.view);
+  if(d.form) return setForm(d.form);
+  if(d.val !== undefined){ const v = +d.val; F.group = F.group && F.group.by === S.by && F.group.val === v ? null : {by:S.by, val:v}; return filtersChanged(); }
+  if(d.clear){ if(d.clear === "group") F.group = null; else if(d.clear === "project") F.project = null; else F.range = null; return filtersChanged(); }
+  if(d.year !== undefined){ F.range = d.year === "all" ? null : [+d.year*12, +d.year*12+12]; return filtersChanged(); }
+  if(d.table !== undefined){ tlTable = !tlTable; return renderTimeline(); }
+  if(d.toast) return toast(d.toast);
+  if(d.file){ const i = +d.file, p = +d.to; iProj[i] = p; iArea[i] = PROJ[p].area; iStat[i] = PROJ[p].status; inbox = inbox.filter(x => x !== i); anatDirty = true; titles = null; renderInbox(); applyLayout(false); filtersChanged(); return toast("Filed under "+PROJ[p].name+"."); }
+  if(d.showProj !== undefined){ F.project = +d.showProj; F.group = null; closeDrawer(); go("brain"); return filtersChanged(); }
+  if(d.tlProj !== undefined){ F.project = +d.tlProj; closeDrawer(); go("timeline"); return filtersChanged(); }
+  if(d.showItem !== undefined){ const i = +d.showItem; F.project = iProj[i] >= 0 ? iProj[i] : null; F.group = null; F.range = null; selected = i; go("brain"); filtersChanged(); closeDrawer(); const k = i*3; cam.gTg = [pTo[k], pTo[k+1], pTo[k+2]]; cam.gDist = 60; return; }
+  if(d.go){ closeDrawer(); return go(d.go); }
+  if(d.proj !== undefined){ palOpen(false); return openProject(+d.proj); }
+  if(d.open !== undefined){ palOpen(false); return openItem(+d.open); }
+});
+$("#groupBy").addEventListener("change", e => { S.by = e.target.value; if(F.group && F.group.by !== S.by) F.group = null; applyLayout(S.form !== "anatomy"); filtersChanged(); });
+$("#sSize").addEventListener("input", e => { S.size = +e.target.value; }); $("#sGlow").addEventListener("input", e => { S.glow = +e.target.value; });
+$("#bReset").onclick = () => homeCam(false); $("#bClear").onclick = () => { F.group = null; F.project = null; F.range = null; filtersChanged(); };
+$("#vpBtn").onclick = () => $("#vp").classList.toggle("open"); $("#searchBtn").onclick = () => palOpen(true); $("#palIn").addEventListener("input", palSearch);
+addEventListener("keydown", e => { if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k"){ e.preventDefault(); return palOpen($("#pal").hidden); }
+  if(!$("#pal").hidden){ if(e.key === "Escape") return palOpen(false); const els = $$("#palOut .ref"); if(e.key === "ArrowDown" || e.key === "ArrowUp"){ e.preventDefault(); palSel = clamp(palSel+(e.key === "ArrowDown" ? 1 : -1), 0, els.length-1); els.forEach((x, k) => x.classList.toggle("sel", k === palSel)); els[palSel] && els[palSel].scrollIntoView({block:"nearest"}); } else if(e.key === "Enter" && els[palSel]) els[palSel].click(); return; }
+  if(e.key === "Escape"){ closeDrawer(); selected = -1; } if(e.key === "Enter" && e.target.matches(".live .row")) e.target.click(); });
+addEventListener("hashchange", () => go(location.hash.slice(1)));
+
+window.__os = { S, F, cam, PROJ, NI, N, go, setForm, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => [pTo[i*3], pTo[i*3+1], pTo[i*3+2]], isBrain, title, pick };
+if(gl){ initGL(); bindInput(); } else $("#stage").innerHTML = '<p style="padding:24px;color:var(--ink-3)">The Brain view needs WebGL2. The other pages still work.</p>';
+$$("#formSeg button").forEach(b => b.classList.toggle("on", b.dataset.form === S.form));
+applyLayout(false); filtersChanged(); renderInbox(); renderNow(); go(location.hash.slice(1) || "now"); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
