@@ -9,7 +9,14 @@ outer halo.
 
 ## Dashboard mockup
 
-`second-brain-os.html` is a clickable mockup of the whole system on generated example data: a Now board of open loops, the Brain (anatomy, spheres, rings, ribbon; regroup by area, project, source, type, status or year), a Timeline you can drag across to light the brain, Projects, Inbox and Sources. Open it in a browser; it needs WebGL2 for the Brain.
+`second-brain-os.html` is a clickable mockup of the whole system on generated example data. Open it in a browser; the Field needs WebGL2.
+
+- **Now**: open sessions and one card per project (waiting on you, running, stalled, done).
+- **Field**: every item is a speck. Pick a **shape** (Neuron, Galaxy, Orbit, Globe, Shell, Nebula, Block) and a **layout** (Whole, Groups, Table); every shape works in every layout. Group by area, project, source, type, status or year.
+- **Colour**: palettes (Aurora, Ember, Orchid, Glacier, Starlight, Spectrum), a custom two-colour palette, a colour of your own for any group from the legend, and a Heat mode. The look is remembered in the browser.
+- **Scan**: a slice that sweeps through the picture and lights only the items inside it.
+- **Controls**: drag to move, right-drag (or Shift-drag) to rotate, scroll to zoom to the cursor, `R` to stop or start rotation, click a speck to open it. On touch: one finger moves, two fingers zoom and rotate.
+- **Timeline**, **Projects**, **Inbox**, **Sources**, and search with `⌘K`.
 
 ## Particle field versions
 
