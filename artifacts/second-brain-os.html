@@ -225,6 +225,8 @@ table.tb th:first-child,table.tb td:first-child{text-align:left}
 #palOut{max-height:52vh;overflow:auto;padding:6px}
 #toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;padding:9px 16px;border-radius:999px;font-size:13.5px;max-width:calc(100% - 32px)}
 
+body.clean #nav,body.clean #vp,body.clean #legend,body.clean #bHint,body.clean #vpBtn,body.clean #bChips{display:none!important}
+body.clean #app{grid-template-columns:minmax(0,1fr)}
 @media (max-width:1100px){ .board{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (max-width:820px){
   #app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
@@ -297,6 +299,12 @@ table.tb th:first-child,table.tb td:first-child{text-align:left}
           <div class="ir" id="acrossRow" hidden><label for="across">Across</label><select id="across">
             <option value="year">Year</option><option value="moy">Month of year</option><option value="source">Source</option><option value="type">What it is</option><option value="status">Project status</option><option value="area">Area of life</option></select></div>
         </div>
+        <h4 class="cap gh">Record</h4>
+        <div class="il">
+          <div class="ir"><label for="sCount">Size</label><input type="range" id="sCount" min="0" max="1" step="0.001" value="1"></div>
+          <div class="ir"><span id="countRead" class="num" style="color:var(--ink-2);font-size:12.5px"></span><button class="btn" id="bGrow" style="padding:5px 12px;font-size:12.5px;white-space:nowrap;flex:none">Play growth</button></div>
+        </div>
+        <p class="foot">Shrink the record to see how it looks when you are starting out. Play growth adds the items in date order.<span class="kbd">G</span></p>
         <h4 class="cap gh">Colour</h4>
         <div class="il">
           <div class="ir"><span>Shows</span><div class="seg" id="colSeg"><button data-col="group">Groups</button><button data-col="heat">Heat</button></div></div>
@@ -402,12 +410,13 @@ const PROJ = [
  ["Backup strategy",5,2,"2026-09","2026-10",2,[1,3,0,0,1,0],["3-2-1 rule","off-site copy","encryption","restore test","schedule"],"A backup plan for the homelab.","Stalled on choosing an off-site destination."],
  ["Home network",5,3,"2023-05","2025-11",4,[2,1,3,0,1,1],["router config","VLANs","DNS","VPN","Wi-Fi coverage"],"Network setup and fixes over two years.","Stable."]
 ].map(p => ({name:p[0], area:p[1], status:p[2], s:ym(p[3]), e:ym(p[4]), w:p[5], mix:p[6], topics:p[7], blurb:p[8], next:p[9]}));
+const orderTm = [];                                       // item dates in order, oldest first
 const UNS_TOPICS = ["untitled chat","quick question","pasted screenshot","random idea","link to read","voice memo","scratch note","draft"];
 const NP = PROJ.length;
 const TYPE_BY_SRC = [[45,15,8,0,20,0,12],[40,15,20,15,10,0,0],[40,15,20,15,10,0,0],[40,15,20,15,10,0,0],[0,10,10,25,0,55,0],[0,0,0,0,0,15,85]];
 const pickW = w => { let s = 0; for(const x of w) s += x; let u = R()*s; for(let i=0;i<w.length;i++){ u -= w[i]; if(u <= 0) return i; } return w.length-1; };
-let NI = 0; for(const p of PROJ){ p.n = Math.round(p.w*100*clamp(Math.sqrt((p.e-p.s+1)/9), 0.42, 1.9)*(0.9+0.2*R())); p.start = NI; NI += p.n; }
-const N_UNS = 900, UNS_START = NI; NI += N_UNS;
+let NI = 0; for(const p of PROJ){ p.n = Math.round(p.w*436*clamp(Math.sqrt((p.e-p.s+1)/9), 0.42, 1.9)*(0.9+0.2*R())); p.start = NI; NI += p.n; }
+const TOTAL = 80000, N_UNS = Math.max(1500, TOTAL-NI), UNS_START = NI; NI += N_UNS;      // 80,000 items in the example record
 const iProj = new Int16Array(NI), iArea = new Uint8Array(NI), iSrc = new Uint8Array(NI), iType = new Uint8Array(NI), iStat = new Uint8Array(NI), iTm = new Float32Array(NI);
 PROJ.forEach((p, pi) => { const live = p.status < 2;
   for(let k=0;k<p.n;k++){ const i = p.start+k; let tm;
@@ -415,6 +424,7 @@ PROJ.forEach((p, pi) => { const live = p.status < 2;
     else tm = p.s + (Math.min(p.e+0.97, NOW_TM)-p.s)*Math.pow(R(), live ? 0.62 : 0.9);
     iProj[i] = pi; iArea[i] = p.area; iStat[i] = p.status; iTm[i] = clamp(tm, 0, NOW_TM); iSrc[i] = pickW(p.mix); iType[i] = pickW(TYPE_BY_SRC[iSrc[i]]); } });
 for(let i=UNS_START;i<NI;i++){ iProj[i] = -1; iArea[i] = 7; iStat[i] = 4; iTm[i] = clamp(NOW_TM - Math.pow(R(), 2.2)*14, 0, NOW_TM); iSrc[i] = pickW([2,4,3,2,3,2]); iType[i] = pickW(TYPE_BY_SRC[iSrc[i]]); }
+const RANK = (() => { const o = Array.from({length:NI}, (_, i) => i).sort((a, b) => iTm[a]-iTm[b]), r = new Float32Array(NI); o.forEach((i, j) => { r[i] = j; orderTm.push(iTm[i]); }); return r; })();
 const MODS = ["first pass","follow-up","revisit","second attempt","notes","fix","plan","review","comparison","summary"];
 function title(i){ const h = hash(i*7919+13), p = iProj[i], topics = p < 0 ? UNS_TOPICS : PROJ[p].topics, t = topics[h % topics.length], T = t[0].toUpperCase()+t.slice(1);
   switch(iType[i]){ case 0: return T+" — "+MODS[(h>>>8) % MODS.length]; case 1: return "Decided: "+t; case 2: return "Open question: "+t; case 3: return "Idea: "+t; case 4: return "To do: "+t; case 5: return "Note: "+t;
@@ -460,7 +470,7 @@ function computeHeat(){ const age = i => NOW_TM-iTm[i];
   else { const ph = new Float32Array(NP+1); let mx = 0; for(let i=0;i<NI;i++) ph[iProj[i]+1] += Math.exp(-age(i)/1.5); const ord = [...ph.keys()].sort((a, b) => ph[a]-ph[b]), rank = new Float32Array(NP+1); ord.forEach((p, j) => rank[p] = j/NP); void mx;      // rank the projects so they spread over the whole ramp
     for(let i=0;i<NI;i++) heat[i] = clamp(0.62*rank[iProj[i]+1]+0.38*Math.exp(-age(i)/9), 0, 1); } }
 const LOOK = { pal:"aurora", custom:["#19ff8c","#35c8ff"], size:1, vary:1, expo:1, glow:0.6, haze:1, dust:1, tw:1, threads:1, depth:1, drift:1, pulse:1 };
-const S = Object.assign({ shape:"neuron", lay:"whole", by:"area", labels:true, links:true, scaf:true, turn:!reduced, across:"year", colBy:"group", heat:"activity", scan:false, scanPos:0.25, scanT:1, sweep:true }, JSON.parse(JSON.stringify(LOOK)));
+const S = Object.assign({ shape:"neuron", lay:"whole", by:"area", labels:true, links:true, scaf:true, turn:!reduced, across:"year", colBy:"group", heat:"activity", scan:false, scanPos:0.25, scanT:1, sweep:true, count:NI }, JSON.parse(JSON.stringify(LOOK)));
 const F = { group:null, project:null, range:null, heat:null };       // filters: {by,val} | project index | [m0,m1]
 const match = i => (!F.group || GROUPS[F.group.by].of(i) === F.group.val) && (F.project === null || iProj[i] === F.project) && (!F.range || (iTm[i] >= F.range[0] && iTm[i] < F.range[1])) && (F.heat === null || band(heat[i]) === F.heat);
 const anyF = () => !!(F.group || F.project !== null || F.range || F.heat !== null);
@@ -473,17 +483,20 @@ function vnoise(x, y, z){ const xi = Math.floor(x), yi = Math.floor(y), zi = Mat
   const h = (a, b, c) => (hash(Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) & 0xffff)/65535, l = (a, b, f) => a+(b-a)*f;
   return l(l(l(h(xi,yi,zi), h(xi+1,yi,zi), u), l(h(xi,yi+1,zi), h(xi+1,yi+1,zi), u), v), l(l(h(xi,yi,zi+1), h(xi+1,yi,zi+1), u), l(h(xi,yi+1,zi+1), h(xi+1,yi+1,zi+1), u), v), w); }
 // fine dust: two faint grains around every item. Texture only; they follow their item and cannot be picked.
-const NS = 640, ND = 2*NI, DB = NI+NS, NH = 420, HB = DB+ND, N = HB+NH, dOff = new Float32Array(ND*3), hPar = new Int32Array(NH);
+const LOWP = matchMedia("(pointer:coarse)").matches || innerWidth < 820;      // phones skip the dust layer
+const NS = 640, ND = LOWP ? 0 : NI, DB = NI+NS, NH = 420, HB = DB+ND, N = HB+NH, dOff = new Float32Array(ND*3), hPar = new Int32Array(NH);
 for(let h=0;h<NH;h++) hPar[h] = Math.floor(R()*NI);      // haze: a few very large, very faint sprites riding on items, for volume
 for(let d=0;d<ND;d++){ const r = (0.35+Math.abs(gauss())*0.8)*(R() < 0.15 ? 2.2 : 1), z = R()*2-1, a = R()*TAU, q = Math.sqrt(1-z*z); dOff[d*3] = q*Math.cos(a)*r; dOff[d*3+1] = z*r; dOff[d*3+2] = q*Math.sin(a)*r; }
 const pFrom = new Float32Array(N*3), pTo = new Float32Array(N*3), pCol = new Float32Array(N*3), pMisc = new Float32Array(N*4);   // misc: lit, magnitude, phase, kind (0 item, 1 scaffold, 2 dust)
 for(let i=0;i<N;i++){ const kind = i < NI ? 0 : i < DB ? 1 : i < HB ? 2 : 3; pMisc[i*4] = 1; pMisc[i*4+2] = R(); pMisc[i*4+3] = kind; pCol[i*3] = pCol[i*3+1] = pCol[i*3+2] = 0.9;
   pMisc[i*4+1] = kind === 0 ? (R() < 0.03 ? 1 : Math.pow(R(), 3)*0.8) : kind === 1 ? 0.45+0.5*R() : kind === 2 ? 0.1+0.3*R()*R() : 0.4+0.6*R(); }
+const pBirth = new Float32Array(N);                       // when each sprite appears during growth playback, 0 to 1
 let labels = [], extent = {w:74, h:72, cy:0}, insts = [];
 let flBuf = [];                                           // thread and frame lines for the current view
 const fl = (x1, y1, z1, x2, y2, z2, c, a) => flBuf.push(x1, y1, z1, c[0], c[1], c[2], a, x2, y2, z2, c[0], c[1], c[2], a);
 const WHITE = [1, 1, 1], NEUTRAL = [0.62, 0.72, 0.78], hr = n => (hash(n) & 0xffff)/65535;
-function groupStats(){ const g = GROUPS[S.by], n = g.meta.length, cnt = new Int32Array(n); for(let i=0;i<NI;i++) cnt[g.of(i)]++; return cnt; }
+const shown = i => RANK[i] < S.count;                     // is this item part of the record at its current size?
+function groupStats(){ const g = GROUPS[S.by], n = g.meta.length, cnt = new Int32Array(n); for(let i=0;i<NI;i++) if(RANK[i] < S.count) cnt[g.of(i)]++; return cnt; }
 const unit3 = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0]/l, v[1]/l, v[2]/l]; };
 const cross3 = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
 const fib = (j, n) => { const y = n > 1 ? 1-2*(j+0.5)/n : 0, r = Math.sqrt(1-y*y), a = j*2.39996+0.6; return [r*Math.cos(a), y, r*Math.sin(a)]; };
@@ -547,8 +560,9 @@ const mk = (items, cx, cy, cz, r, whole, tilt) => ({items, cx, cy, cz, r, whole,
 function buildView(){ const g = GROUPS[S.by], sh = S.shape, lay = S.lay; insts = []; labels = []; brId = 0;
   if(sh === "block") return ({whole:layoutTracks, groups:layoutMosaic, table:layoutMatrix})[lay]();
   const disc = !!DISC[sh], tilt = disc && lay !== "whole" ? 1.0 : 0;                             // discs lie flat when alone and lean toward you in a grid
-  if(lay === "whole"){ const it = mk(Array.from({length:NI}, (_, i) => i), 0, 0, 0, 62, true, 0); insts.push(it); SH[sh](it); extent = disc ? {w:78, h:62, cy:0} : {w:76, h:74, cy:0}; return; }
-  if(lay === "groups"){ const b = new Map(); for(let i=0;i<NI;i++){ const k = g.of(i); let a = b.get(k); if(!a) b.set(k, a = []); a.push(i); }
+  if(lay === "whole"){ const all = []; for(let i=0;i<NI;i++) if(RANK[i] < S.count) all.push(i); const sc = clamp(Math.pow(S.count/NI, 0.3), 0.2, 1);      // a small record makes a small body
+    const it = mk(all, 0, 0, 0, 62*sc, true, 0); insts.push(it); SH[sh](it); extent = disc ? {w:78*sc, h:62*sc, cy:0} : {w:76*sc, h:74*sc, cy:0}; return; }
+  if(lay === "groups"){ const b = new Map(); for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const k = g.of(i); let a = b.get(k); if(!a) b.set(k, a = []); a.push(i); }
     const ord = [...b.keys()].sort((x, y) => b.get(y).length-b.get(x).length), n = ord.length, rad = [], cx = [], cy = []; let acc = 0;
     ord.forEach((k, j) => { const c = b.get(k).length; rad[j] = sh === "neuron" || disc ? 0.62*Math.sqrt(c)+5 : sh === "nebula" ? 3.3*Math.cbrt(c)+4 : 2.4*Math.cbrt(c)+3; const r = 1.3*Math.sqrt(acc), a = j*2.39996; cx[j] = Math.cos(a)*r; cy[j] = Math.sin(a)*r*0.72; acc += rad[j]*rad[j]; });
     const hy = disc ? 0.8 : 1;                                                                  // a leaning disc takes less height
@@ -559,9 +573,9 @@ function buildView(){ const g = GROUPS[S.by], sh = S.shape, lay = S.lay; insts =
       labels.push({t:g.meta[k][0], p:[cx[j], cy[j]+rad[j]*hy+2.5, it.cz], c:""}); mx = Math.max(mx, Math.abs(cx[j])+rad[j]); my = Math.max(my, Math.abs(cy[j])+rad[j]*hy); });
     extent = {w:mx+6, h:my+9, cy:0}; return; }
   const ac = ACROSS[S.across], cnt = groupStats(), rows = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") rows.sort((x, y) => cnt[y]-cnt[x]);
-  const cc = new Int32Array(ac.meta.length); for(let i=0;i<NI;i++) cc[ac.of(i)]++; const cols = [...Array(cc.length).keys()].filter(k => cc[k]);
+  const cc = new Int32Array(ac.meta.length); for(let i=0;i<NI;i++) if(RANK[i] < S.count) cc[ac.of(i)]++; const cols = [...Array(cc.length).keys()].filter(k => cc[k]);
   const nr = rows.length, nc = cols.length, ri = new Int32Array(cnt.length), ci = new Int32Array(cc.length); rows.forEach((k, j) => ri[k] = j); cols.forEach((k, j) => ci[k] = j);
-  const cells = new Map(); let mxc = 1; for(let i=0;i<NI;i++){ const q = ri[g.of(i)]*nc+ci[ac.of(i)]; let a = cells.get(q); if(!a) cells.set(q, a = []); a.push(i); if(a.length > mxc) mxc = a.length; }
+  const cells = new Map(); let mxc = 1; for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const q = ri[g.of(i)]*nc+ci[ac.of(i)]; let a = cells.get(q); if(!a) cells.set(q, a = []); a.push(i); if(a.length > mxc) mxc = a.length; }
   const cw = Math.min(150/nc, 104/nr, 34), ch = cw, Wd = cw*nc, Hd = ch*nr, x0 = -Wd/2, y0 = Hd/2;
   for(const [q, items] of cells){ const r = Math.floor(q/nc), c = q % nc, it = mk(items, x0+(c+0.5)*cw, y0-(r+0.5)*ch, 0, 0.46*Math.min(cw, ch)*(0.42+0.58*Math.sqrt(items.length/mxc)), false, tilt); insts.push(it); SH[sh](it); }
   for(let r=0;r<=nr;r++) fl(x0, y0-r*ch, 0, x0+Wd, y0-r*ch, 0, WHITE, 0.14); for(let c=0;c<=nc;c++) fl(x0+c*cw, y0, 0, x0+c*cw, y0-Hd, 0, WHITE, 0.14);
@@ -572,8 +586,8 @@ function buildView(){ const g = GROUPS[S.by], sh = S.shape, lay = S.lay; insts =
 let webPairs = new Int32Array(0), webData = new Float32Array(0);
 function buildWeb(){ if(S.shape !== "neuron" && S.shape !== "nebula"){ webPairs = new Int32Array(0); webData = new Float32Array(0); return; }      // links between neighbouring items of the same project
   const cell = S.lay === "whole" ? 2.2 : 1.5, grid = new Map(), key = (x, y, z) => ((Math.floor(x/cell)+512) << 20) | ((Math.floor(y/cell)+512) << 10) | (Math.floor(z/cell)+512), out = [];
-  for(let i=0;i<NI;i++){ const k = key(pTo[i*3], pTo[i*3+1], pTo[i*3+2]); let a = grid.get(k); if(!a) grid.set(k, a = []); a.push(i); }
-  for(let i=0;i<NI;i++){ const x = pTo[i*3], y = pTo[i*3+1], z = pTo[i*3+2]; let b1 = -1, d1 = cell*cell, b2 = -1, d2 = cell*cell;
+  for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const k = key(pTo[i*3], pTo[i*3+1], pTo[i*3+2]); let a = grid.get(k); if(!a) grid.set(k, a = []); a.push(i); }
+  for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const x = pTo[i*3], y = pTo[i*3+1], z = pTo[i*3+2]; let b1 = -1, d1 = cell*cell, b2 = -1, d2 = cell*cell;
     for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++){ const a = grid.get(key(x+dx*cell, y+dy*cell, z+dz*cell)); if(!a) continue;
       for(const j of a){ if(j === i || iProj[j] !== iProj[i]) continue; const d = (pTo[j*3]-x)**2+(pTo[j*3+1]-y)**2+(pTo[j*3+2]-z)**2; if(d < d1){ b2 = b1; d2 = d1; b1 = j; d1 = d; } else if(d < d2){ b2 = j; d2 = d; } } }
     if(b1 >= 0) out.push(i, b1); if(b2 >= 0 && (hash(i) & 1)) out.push(i, b2); }
@@ -584,7 +598,7 @@ function fillWeb(){ for(let v=0;v<webPairs.length;v++){ const i = webPairs[v], o
 function layoutTracks(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
   const y0 = new Float32Array(n), h = new Float32Array(n); let sum = 0; for(const k of ord){ h[k] = Math.max(1.4, Math.sqrt(cnt[k])); sum += h[k]; } const H = Math.min(78, 22+ord.length*3.4); let acc = H/2; for(const k of ord){ h[k] = h[k]/sum*H; acc -= h[k]; y0[k] = acc; }
   const W = 156, xOf = tm => (tm/(NM+1)-0.5)*W;
-  for(let i=0;i<NI;i++){ const k = g.of(i), m = Math.floor(iTm[i]); pTo[i*3] = xOf(m+0.1+R()*0.8); pTo[i*3+1] = y0[k]+h[k]*(0.1+0.8*R()); pTo[i*3+2] = gauss()*0.4; }
+  for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const k = g.of(i), m = Math.floor(iTm[i]); pTo[i*3] = xOf(m+0.1+R()*0.8); pTo[i*3+1] = y0[k]+h[k]*(0.1+0.8*R()); pTo[i*3+2] = gauss()*0.4; }
   labels = []; for(let y=0;y<6;y++) labels.push({t:String(2021+y), p:[xOf(y*12+6), -H/2-4, 0], c:"yr"});
   if(ord.length <= 12) ord.forEach(k => labels.push({t:g.meta[k][0], p:[-W/2-2, y0[k]+h[k]/2, 0], c:"", right:true})); extent = {w:W/2+(ord.length <= 12 ? 26 : 6), h:H/2+8, cy:-1};
 }
@@ -594,22 +608,22 @@ function squarify(items, x, y, w, h){ const total = items.reduce((q, a) => q+a.v
     const thick = sum/side; let off = 0; for(const it of row){ const len = it.v*scale/thick; if(w >= h){ it.x = x; it.y = y+off; it.w = thick; it.h = len; } else { it.x = x+off; it.y = y; it.w = len; it.h = thick; } off += len; }
     if(w >= h){ x += thick; w -= thick; } else { y += thick; h -= thick; } i = j; } }
 function layoutMosaic(){ const top = S.by === "project" ? GROUPS.area : GROUPS[S.by], cells = new Map();            // boxes inside boxes: group, then project
-  for(let i=0;i<NI;i++){ const a = top.of(i), key = a*64+iProj[i]+1; let c = cells.get(key); if(!c) cells.set(key, c = {v:0, a, p:iProj[i]}); c.v++; }
+  for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const a = top.of(i), key = a*64+iProj[i]+1; let c = cells.get(key); if(!c) cells.set(key, c = {v:0, a, p:iProj[i]}); c.v++; }
   const groups = new Map(); for(const c of cells.values()){ let q = groups.get(c.a); if(!q) groups.set(c.a, q = {v:0, a:c.a, kids:[]}); q.v += c.v; q.kids.push(c); }
   const gl2 = [...groups.values()].sort((a, b) => b.v-a.v), W = 156, H = 92; squarify(gl2, -W/2, -H/2, W, H); labels = []; for(const q of gl2) q.h = Math.max(1, q.h-3.6);
   const box = (b, c, a) => { fl(b.x, b.y, 0, b.x+b.w, b.y, 0, c, a); fl(b.x+b.w, b.y, 0, b.x+b.w, b.y+b.h, 0, c, a); fl(b.x+b.w, b.y+b.h, 0, b.x, b.y+b.h, 0, c, a); fl(b.x, b.y+b.h, 0, b.x, b.y, 0, c, a); };
   for(const q of gl2){ const c = WHITE; q.kids.sort((a, b) => b.v-a.v); squarify(q.kids, q.x+0.9, q.y+0.9, Math.max(0.5, q.w-1.8), Math.max(0.5, q.h-1.8)); box(q, c, 0.55);
     labels.push({t:top.meta[q.a][0], p:[q.x+0.5, q.y+q.h+1.9, 0], c:"", left:true});
     for(const k of q.kids){ if(q.kids.length > 1) box(k, c, 0.22); if(q.kids.length > 1 && k.p >= 0 && k.w > PROJ[k.p].name.length*1.45+4 && k.h > 6 && labels.length < 44) labels.push({t:PROJ[k.p].name, p:[k.x+1.2, k.y+k.h-2.4, 0], c:"yr", left:true}); } }
-  for(let i=0;i<NI;i++){ const k = cells.get(top.of(i)*64+iProj[i]+1), px = 0.9, py = 0.9; pTo[i*3] = k.x+px+R()*Math.max(0.1, k.w-2*px); pTo[i*3+1] = k.y+py+R()*Math.max(0.1, k.h-2*py); pTo[i*3+2] = gauss()*0.3; }
+  for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const k = cells.get(top.of(i)*64+iProj[i]+1), px = 0.9, py = 0.9; pTo[i*3] = k.x+px+R()*Math.max(0.1, k.w-2*px); pTo[i*3+1] = k.y+py+R()*Math.max(0.1, k.h-2*py); pTo[i*3+2] = gauss()*0.3; }
   extent = {w:W/2+5, h:H/2+7, cy:1};
 }
 function layoutMatrix(){ const g = GROUPS[S.by], ac = ACROSS[S.across], cnt = groupStats(), rows = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") rows.sort((a, b) => cnt[b]-cnt[a]);
-  const cc = new Int32Array(ac.meta.length); for(let i=0;i<NI;i++) cc[ac.of(i)]++; const cols = [...Array(cc.length).keys()].filter(k => cc[k]);
+  const cc = new Int32Array(ac.meta.length); for(let i=0;i<NI;i++) if(RANK[i] < S.count) cc[ac.of(i)]++; const cols = [...Array(cc.length).keys()].filter(k => cc[k]);
   const nr = rows.length, nc = cols.length, ri = new Int32Array(cnt.length), ci = new Int32Array(cc.length); rows.forEach((k, j) => ri[k] = j); cols.forEach((k, j) => ci[k] = j);
-  const cell = new Int32Array(nr*nc); let mx = 1; for(let i=0;i<NI;i++){ const q = ri[g.of(i)]*nc+ci[ac.of(i)]; if(++cell[q] > mx) mx = cell[q]; }
+  const cell = new Int32Array(nr*nc); let mx = 1; for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const q = ri[g.of(i)]*nc+ci[ac.of(i)]; if(++cell[q] > mx) mx = cell[q]; }
   const cw = Math.min(22, 150/nc), ch = Math.min(cw, 92/nr), W = cw*nc, H = ch*nr, x0 = -W/2, y0 = H/2;
-  for(let i=0;i<NI;i++){ const r = ri[g.of(i)], c = ci[ac.of(i)], q = 0.2+0.8*Math.sqrt(cell[r*nc+c]/mx);            // a block's area follows its count
+  for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const r = ri[g.of(i)], c = ci[ac.of(i)], q = 0.2+0.8*Math.sqrt(cell[r*nc+c]/mx);            // a block's area follows its count
     pTo[i*3] = x0+(c+0.5)*cw+(R()-0.5)*cw*0.88*q; pTo[i*3+1] = y0-(r+0.5)*ch+(R()-0.5)*ch*0.88*q; pTo[i*3+2] = gauss()*0.25; }
   for(let r=0;r<=nr;r++) fl(x0, y0-r*ch, 0, x0+W, y0-r*ch, 0, NEUTRAL, 0.16); for(let c=0;c<=nc;c++) fl(x0+c*cw, y0, 0, x0+c*cw, y0-H, 0, NEUTRAL, 0.16);
   labels = cols.map((k, j) => ({t:ac.meta[k][0], p:[x0+(j+0.5)*cw, y0+3, 0], c:"yr"}));
@@ -658,7 +672,7 @@ const uploadCol = () => { if(gl){ gl.bindBuffer(gl.ARRAY_BUFFER, bCol); gl.buffe
 const fullCol = i => [pCol[i*3], pCol[i*3+1], pCol[i*3+2]];
 function recolour(){ colourize(); fillWeb(); uploadCol(); renderLegend(); }
 function relit(){ const any = anyF(); let n = 0;
-  for(let i=0;i<NI;i++){ const m = !any || match(i); pMisc[i*4] = m ? 1 : 0.085; if(m) n++; }
+  for(let i=0;i<NI;i++){ const m = RANK[i] < S.count && (!any || match(i)); pMisc[i*4] = m ? 1 : 0.085; if(m) n++; }
   for(let i=NI;i<DB;i++) pMisc[i*4] = any ? 0.35 : 1; for(let d=0;d<ND;d++) pMisc[(DB+d)*4] = pMisc[(d % NI)*4]; for(let h=0;h<NH;h++) pMisc[(HB+h)*4] = pMisc[hPar[h]*4]; fillWeb(); return n; }
 function applyLayout(animate){
   for(let i=0;i<N;i++){ const w = wOf(i), k = i*3; pFrom[k] += (pTo[k]-pFrom[k])*w; pFrom[k+1] += (pTo[k+1]-pFrom[k+1])*w; pFrom[k+2] += (pTo[k+2]-pFrom[k+2])*w; }
@@ -668,9 +682,10 @@ function applyLayout(animate){
   for(let q=0;q<NS;q++){ const k = (NI+q)*3; if(!core || !insts.length){ pTo[k] = pTo[k+1] = pTo[k+2] = 0; continue; } const it = insts[q % insts.length], r = it.r*core; pTo[k] = it.cx+gauss()*r; pTo[k+1] = it.cy+gauss()*r; pTo[k+2] = it.cz+gauss()*r; }
   const ds = S.lay === "whole" ? 0.9 : 0.5; for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pTo[k] = pTo[p]+dOff[d*3]*ds; pTo[k+1] = pTo[p+1]+dOff[d*3+1]*ds; pTo[k+2] = pTo[p+2]+dOff[d*3+2]*(S.shape === "block" ? 0.3 : ds); }
   for(let h=0;h<NH;h++){ const p = hPar[h]*3, k = (HB+h)*3; pTo[k] = pTo[p]; pTo[k+1] = pTo[p+1]; pTo[k+2] = pTo[p+2]; }
+  for(let i=0;i<NI;i++) pBirth[i] = RANK[i] < S.count ? RANK[i]/S.count : 9; for(let d=0;d<ND;d++) pBirth[DB+d] = pBirth[d % NI]; for(let h=0;h<NH;h++) pBirth[HB+h] = pBirth[hPar[h]];
   buildWeb(); colourize(); fillWeb(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false);
   $("#formNote").textContent = SHAPES.find(x => x[0] === S.shape)[2]+" "+LAYS[S.lay];
-  $("#bHint").textContent = "Drag to move · right-drag to rotate · scroll to zoom · click a speck to open it · R stops the rotation";
+  $("#bHint").textContent = "Drag to move · right-drag to rotate · scroll to zoom · R rotation · G growth · H hide interface";
 }
 
 /* ------------------------------------------------------------ 3. RENDERER */
@@ -680,6 +695,7 @@ function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src)
 function prog(vs, fs, attrs){ const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); (attrs || []).forEach((a, i) => gl.bindAttribLocation(p, i, a)); gl.linkProgram(p);
   if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for(let i=0;i<n;i++){ const x = gl.getActiveUniform(p, i); u[x.name] = gl.getUniformLocation(p, x.name); } return {p, u}; }
 let frameVerts = 0, frameA = 0, thermA = 0, bFrame = null, vaoFr = null;
+let bBirth = null, growing = false, growT = 2; const GROW_SECS = 14;
 let pP, pL, pD, pU, pC, vaoP, vaoL, vaoF, vaoN, vaoW, bFrom, bTo, bCol, bMisc, bLine, bNerve, bWeb = null;
 const MAXV = 8*16*2, lineData = new Float32Array(MAXV*7); let lineVerts = 0;
 function initGL(){
@@ -689,7 +705,7 @@ float signal(vec3 P){ return uAnat*pow(max(0.0,sin(length(P)*0.2-uTime*1.5)),14.
 `;
   pP = prog(`#version 300 es
 precision highp float;
-in vec3 aFrom; in vec3 aTo; in vec3 aCol; in vec4 aMisc;
+in vec3 aFrom; in vec3 aTo; in vec3 aCol; in vec4 aMisc; in float aBirth; uniform float uGrow;
 uniform mat4 uVP; uniform float uT, uPx, uSize, uK, uGain, uScaf, uDist, uDust, uHaze, uVary, uTw, uDepthF, uDrift, uScan, uScanPos, uScanT; uniform vec3 uScanAx;
 out vec3 vCol; out float vHot; out float vHz;
 `+LIVE+`void main(){
@@ -706,6 +722,7 @@ out vec3 vCol; out float vHot; out float vHz;
   float tw=1.0+0.2*uTw*sin(uTime*(1.0+2.5*fract(ph*7.31))+ph*6.2831);
   float glint=step(0.985,mag)*pow(max(0.0,sin(uTime*(0.5+fract(ph*3.7))+ph*40.0)),8.0);
   float inten=mix(0.55+3.2*mag*mag,mag*0.6,scaf)*mix(1.0,0.42*uDust,dust)*aMisc.x*mix(1.0,uScaf,scaf)*tw*(1.0+1.6*uTw*glint)*uGain*max(0.12,mix(1.0,clamp(1.55-0.62*depth/uDist,0.42,1.3),uDepthF));
+  float born=1.0-smoothstep(uGrow-0.01,uGrow+0.004,aBirth); inten*=born*(1.0+2.2*(1.0-smoothstep(0.0,0.05,uGrow-aBirth)));      // growth: items appear in date order, bright when new
   inten*=1.0+uAnat*uWave*1.3*signal(P)*(1.0-0.6*dust);
   inten=mix(inten,0.05*uHaze*aMisc.x*uGain,haze);
   float sd=(dot(P,uScanAx)-uScanPos)/uScanT; inten*=mix(1.0,0.03+1.7*exp(-sd*sd),uScan);      // scan: only the slice is lit
@@ -715,7 +732,7 @@ precision mediump float; in vec3 vCol; in float vHot; in float vHz; out vec4 o;
 void main(){ vec2 p=gl_PointCoord*2.0-1.0; float d2=dot(p,p); if(d2>1.0) discard;
   float q=d2/0.0576, core=1.0/(1.0+q*q*q);          // a crisp bead: flat top, steep edge. It stays sharp at any size.
   float halo=exp(-d2*5.0)*(1.0-d2)*0.11;
-  o=vec4(mix(vCol*(core*1.35+halo)+vec3(vHot)*core,vCol*exp(-d2*3.2)*(1.0-d2),vHz),1.0); }`, ["aFrom","aTo","aCol","aMisc"]);
+  o=vec4(mix(vCol*(core*1.35+halo)+vec3(vHot)*core,vCol*exp(-d2*3.2)*(1.0-d2),vHz),1.0); }`, ["aFrom","aTo","aCol","aMisc","aBirth"]);
   pL = prog(`#version 300 es
 precision highp float;
 in vec3 aP; in vec4 aC; uniform mat4 uVP; uniform float uA, uDist, uFade; uniform vec3 uTint; out vec4 vC;
@@ -737,9 +754,9 @@ precision highp float; in vec2 vUv; uniform sampler2D uScene, uBloom; uniform fl
 void main(){ vec3 s=texture(uScene,vUv).rgb, b=texture(uBloom,vUv).rgb;
   vec3 c=(s+b*uGlow)*1.2*uExp; float l=max(c.r,max(c.g,c.b)), t=0.97*(1.0-exp(-l*0.95)); c=c*(t/max(l,1e-5)); c=mix(c,vec3(t),smoothstep(6.0,30.0,l)*0.45);
   c=pow(c,vec3(1.0/2.0)); c=max(c-0.02,0.0)*1.0204; o=vec4(c,1.0); }`);
-  const buf = () => gl.createBuffer(); bFrom = buf(); bTo = buf(); bCol = buf(); bMisc = buf(); bLine = buf(); bNerve = buf(); bWeb = buf();
+  const buf = () => gl.createBuffer(); bFrom = buf(); bTo = buf(); bCol = buf(); bMisc = buf(); bBirth = buf(); bLine = buf(); bNerve = buf(); bWeb = buf();
   vaoP = gl.createVertexArray(); gl.bindVertexArray(vaoP);
-  [[bFrom,3],[bTo,3],[bCol,3],[bMisc,4]].forEach(([b, n], i) => { gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, n, gl.FLOAT, false, 0, 0); });
+  [[bFrom,3],[bTo,3],[bCol,3],[bMisc,4],[bBirth,1]].forEach(([b, n], i) => { gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, n, gl.FLOAT, false, 0, 0); });
   vaoL = gl.createVertexArray(); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferData(gl.ARRAY_BUFFER, lineData.byteLength, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
   const lineVao = (b, data, usage) => { const v = gl.createVertexArray(); gl.bindVertexArray(v); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, usage);
@@ -747,7 +764,7 @@ void main(){ vec3 s=texture(uScene,vUv).rgb, b=texture(uBloom,vUv).rgb;
   vaoW = lineVao(bWeb, new Float32Array(7), gl.DYNAMIC_DRAW); bFrame = buf(); vaoFr = lineVao(bFrame, new Float32Array(7), gl.DYNAMIC_DRAW);
   vaoF = gl.createVertexArray(); gl.bindVertexArray(null);
 }
-function uploadAll(){ if(!gl) return; for(const [b, d] of [[bFrom,pFrom],[bTo,pTo],[bCol,pCol],[bMisc,pMisc]]){ gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); } }
+function uploadAll(){ if(!gl) return; for(const [b, d] of [[bFrom,pFrom],[bTo,pTo],[bCol,pCol],[bMisc,pMisc],[bBirth,pBirth]]){ gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); } }
 function uploadMisc(){ if(!gl) return; gl.bindBuffer(gl.ARRAY_BUFFER, bMisc); gl.bufferData(gl.ARRAY_BUFFER, pMisc, gl.DYNAMIC_DRAW); }
 function target(w, h){ const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
   if(HDR) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null); else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -842,24 +859,26 @@ function placeLabels(){ const show = S.labels && T >= 1, placed = [], H = 19;
     placed.push({x, y, w:l.w}); e.style.opacity = fade; e.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
     if(ld){ const ex = dx >= 0 ? x : x+l.w, ey = y+H/2, len = Math.hypot(ex-ax, ey-ay); ld.style.opacity = fade*0.55; ld.style.width = len.toFixed(1)+"px"; ld.style.transform = `translate(${ax.toFixed(1)}px,${ay.toFixed(1)}px) rotate(${Math.atan2(ey-ay, ex-ax).toFixed(3)}rad)`; } }
   const ring = $("#ring"); if(selected >= 0 && T >= 1){ const k = selected*3; livePos(pTo[k], pTo[k+1], pTo[k+2], lv); project(lv[0], lv[1], lv[2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; } else ring.hidden = true; }
+const DENS_S = Math.pow(18000/NI, 0.17), DENS_G = Math.pow(18000/NI, 0.6);      // more items: slightly smaller and dimmer each, so the picture keeps its balance
 let tPrev = performance.now(), scafA = 1, webA = 0, scanA = 0;
 const BLOOM_W = [0, 0.75, 0.5, 0.42];                     // tight bloom: each wider level adds less, so glow stays a halo and never a fog
 function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now-tPrev)/1000); tPrev = now; clock += dt; if(!gl || !resize()) return;
   const ease = 1-Math.exp(-dt*4), any = anyF(), settled = T >= 1;
   if(T < 1) T = Math.min(1, T+dt/1.4);
-  scafA += ((S.scaf && CORE[S.shape] ? 1 : 0)-scafA)*ease; webA += ((S.links && settled && webPairs.length ? 1 : 0)-webA)*ease; frameA += ((S.links && settled ? 1 : 0)-frameA)*ease; thermA += ((S.colBy === "heat" ? 1 : 0)-thermA)*ease;
+  scafA += ((S.scaf && CORE[S.shape] ? 1 : 0)-scafA)*ease; webA += ((S.links && settled && webPairs.length && !growing ? 1 : 0)-webA)*ease; frameA += ((S.links && settled ? 1 : 0)-frameA)*ease; thermA += ((S.colBy === "heat" ? 1 : 0)-thermA)*ease;
+  if(growing){ growT += dt/GROW_SECS; const k = Math.min(S.count-1, Math.floor(clamp(growT, 0, 1)*S.count)); $("#bCount").textContent = dateOf(orderTm[k]).split(" ").slice(1).join(" ")+" · "+fmt(k+1)+" items"; if(growT >= 1.02) setGrow(false); }
   updateCam(dt); if(needPick) doPick(); buildLines(); if(S.scan) updateScan(dt); placeLabels(); scanA += ((S.scan ? 1 : 0)-scanA)*ease;
   const time = reduced ? 0 : clock, wave = reduced ? 0 : S.pulse, tint = S.colBy === "heat" ? NEUTRAL : palMid();
   gl.bindFramebuffer(gl.FRAMEBUFFER, scene.fbo); gl.viewport(0, 0, scene.w, scene.h); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
   gl.useProgram(pL.p); gl.uniformMatrix4fv(pL.u.uVP, false, VP); gl.uniform1f(pL.u.uTime, time); gl.uniform1f(pL.u.uAnat, anatA); gl.uniform1f(pL.u.uWave, wave); gl.uniform1f(pL.u.uDist, cam.dist);
   gl.uniform1f(pL.u.uFade, flat() ? 0 : 1); gl.uniform3f(pL.u.uTint, tint[0], tint[1], tint[2]);
-  if(frameVerts && frameA > 0.01){ gl.uniform1f(pL.u.uA, frameA*S.threads*0.55*(any ? 0.5 : 1)*(1-0.7*scanA)); gl.bindVertexArray(vaoFr); gl.drawArrays(gl.LINES, 0, frameVerts); }
+  if(frameVerts && frameA > 0.01){ gl.uniform1f(pL.u.uA, frameA*S.threads*0.55*(any ? 0.5 : 1)*(1-0.7*scanA)*(growing ? clamp(growT*1.4, 0, 1) : 1)); gl.bindVertexArray(vaoFr); gl.drawArrays(gl.LINES, 0, frameVerts); }
   gl.uniform3f(pL.u.uTint, 1, 1, 1);
   if(webA > 0.01 && webPairs.length){ gl.uniform1f(pL.u.uA, webA*S.threads*(1-0.8*scanA)); gl.bindVertexArray(vaoW); gl.drawArrays(gl.LINES, 0, webPairs.length); }
   gl.uniform1f(pL.u.uFade, 0); gl.uniform1f(pL.u.uWave, 0);
   if(lineVerts){ gl.uniform1f(pL.u.uA, 1); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferSubData(gl.ARRAY_BUFFER, 0, lineData.subarray(0, lineVerts*7)); gl.drawArrays(gl.LINES, 0, lineVerts); }
   gl.useProgram(pP.p); const U = pP.u; gl.uniformMatrix4fv(U.uVP, false, VP); gl.uniform1f(U.uT, T); gl.uniform1f(U.uTime, time); gl.uniform1f(U.uAnat, anatA); gl.uniform1f(U.uWave, wave); gl.uniform1f(U.uPx, scene.h/(2*Math.tan(FOV/2)));
-  gl.uniform1f(U.uSize, 4.3*S.size*pxr); gl.uniform1f(U.uK, 6*pxr); gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust); gl.uniform1f(U.uHaze, (0.35+0.75*thermA)*S.haze); gl.uniform1f(U.uVary, S.vary); gl.uniform1f(U.uTw, S.tw); gl.uniform1f(U.uDepthF, S.depth); gl.uniform1f(U.uDrift, S.drift); gl.uniform1f(U.uScan, scanA); gl.uniform1f(U.uScanPos, SC.pos); gl.uniform1f(U.uScanT, SC.th); gl.uniform3f(U.uScanAx, SC.k === 0 ? 1 : 0, SC.k === 1 ? 1 : 0, 0);
+  gl.uniform1f(U.uSize, 4.3*S.size*pxr*DENS_S); gl.uniform1f(U.uK, 6*pxr); gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)*DENS_G/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust); gl.uniform1f(U.uHaze, (0.35+0.75*thermA)*S.haze); gl.uniform1f(U.uVary, S.vary); gl.uniform1f(U.uTw, S.tw); gl.uniform1f(U.uDepthF, S.depth); gl.uniform1f(U.uDrift, S.drift); gl.uniform1f(U.uGrow, growing ? growT : 2); gl.uniform1f(U.uScan, scanA); gl.uniform1f(U.uScanPos, SC.pos); gl.uniform1f(U.uScanT, SC.th); gl.uniform3f(U.uScanAx, SC.k === 0 ? 1 : 0, SC.k === 1 ? 1 : 0, 0);
   gl.bindVertexArray(vaoP); gl.drawArrays(gl.POINTS, 0, N);
   gl.bindVertexArray(vaoF); gl.disable(gl.BLEND); gl.useProgram(pD.p); gl.uniform1i(pD.u.uTex, 0); let src = scene;
   for(const m of mips){ gl.bindFramebuffer(gl.FRAMEBUFFER, m.fbo); gl.viewport(0, 0, m.w, m.h); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pD.u.uTexel, 1/src.w, 1/src.h); gl.uniform1f(pD.u.uThr, src === scene ? 0.22 : 0); gl.drawArrays(gl.TRIANGLES, 0, 3); src = m; }
@@ -869,18 +888,18 @@ function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, scene.tex); gl.uniform1i(pC.u.uScene, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, mips[0].tex); gl.uniform1i(pC.u.uBloom, 1);
   gl.uniform1f(pC.u.uGlow, S.glow*0.85*(1+0.25*thermA)); gl.uniform1f(pC.u.uExp, S.expo); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.activeTexture(gl.TEXTURE0);
 }
-function filtersChanged(){ const n = relit(); uploadMisc(); $("#bCount").textContent = (anyF()) ? fmt(n)+" of "+fmt(NI)+" items lit" : fmt(NI)+" items";
+function filtersChanged(){ const n = relit(); uploadMisc(); $("#bCount").textContent = (anyF()) ? fmt(n)+" of "+fmt(S.count)+" items lit" : fmt(S.count)+" items";
   const chips = []; if(F.heat !== null) chips.push(["heat", "Heat: "+BANDS[F.heat]]); if(F.group) chips.push(["group", GROUPS[F.group.by].name+": "+GROUPS[F.group.by].meta[F.group.val][0]]); if(F.project !== null) chips.push(["project", "Project: "+PROJ[F.project].name]); if(F.range) chips.push(["range", rangeText()]);
   $("#bChips").innerHTML = chips.map(c => `<span class="chip">${esc(c[1])}<button data-clear="${c[0]}" aria-label="Remove filter">×</button></span>`).join(" "); renderLegend(); if(view === "timeline") renderTimeline(); return n; }
 const qName = q => "Q"+(q % 4+1)+" "+(2021+Math.floor(q/4));
 const rangeText = () => { const a = Math.round(F.range[0]/3), b = Math.round(F.range[1]/3)-1; return a === b ? qName(a) : qName(a)+" – "+qName(b); };
 function legHover(v){ if(v === hoverLeg) return; hoverLeg = v; if(S.colBy === "heat") return; colourize(); uploadCol(); fillWeb(); }
 function renderLegend(){
-  if(S.colBy === "heat"){ const cnt = [0,0,0,0]; for(let i=0;i<NI;i++) cnt[band(heat[i])]++; const mid = [0.86, 0.58, 0.32, 0.08];
-    $("#legend").innerHTML = `<div class="cap"><span>Heat</span><span>${fmt(NI)}</span></div><div id="heatBar" style="background:linear-gradient(90deg,${RAMP.map(css).join(",")})"></div><div class="heatEnds"><span>cold</span><span>hot</span></div><p class="heatNote">${HEATS[S.heat]}</p>`+
+  if(S.colBy === "heat"){ const cnt = [0,0,0,0]; for(let i=0;i<NI;i++) if(RANK[i] < S.count) cnt[band(heat[i])]++; const mid = [0.86, 0.58, 0.32, 0.08];
+    $("#legend").innerHTML = `<div class="cap"><span>Heat</span><span>${fmt(S.count)}</span></div><div id="heatBar" style="background:linear-gradient(90deg,${RAMP.map(css).join(",")})"></div><div class="heatEnds"><span>cold</span><span>hot</span></div><p class="heatNote">${HEATS[S.heat]}</p>`+
       BANDS.map((b, k) => `<button data-heat="${k}" class="${F.heat === k ? "on" : ""}"><i class="dot" style="background:${css(rampAt(mid[k]))}"></i><span>${b}</span><span class="num">${fmt(cnt[k])}</span></button>`).join(""); return; }
   const g = GROUPS[S.by], cnt = groupStats(), ord = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") ord.sort((a, b) => cnt[b]-cnt[a]);
-  $("#legend").innerHTML = `<div class="cap"><span>${esc(g.name)}</span><span>${fmt(NI)}</span></div>`+ord.map(k => { const c = toHex(grpCols[k] || [1,1,1]);
+  $("#legend").innerHTML = `<div class="cap"><span>${esc(g.name)}</span><span>${fmt(S.count)}</span></div>`+ord.map(k => { const c = toHex(grpCols[k] || [1,1,1]);
     return `<div class="lr ${F.group && F.group.by === S.by && F.group.val === k ? "on" : ""}" data-val="${k}" role="button" tabindex="0"><label class="sw" style="background:${c}" title="Change this colour"><input type="color" data-cg="${k}" value="${c}" aria-label="Colour for ${esc(g.meta[k][0])}"></label><span>${esc(g.meta[k][0])}</span><span class="num">${fmt(cnt[k])}</span></div>`; }).join(""); }
 
 /* ------------------------------------------------------------ 5. PAGES */
@@ -906,7 +925,7 @@ function renderSources(){ const cnt = new Int32Array(6); for(let i=0;i<NI;i++) c
 /* Timeline: one stacked column per quarter, by area. Drag across it to light that span in the field. */
 const NQ = 24; let tlTable = false, brush = null;
 function quarterCounts(){ const c = Array.from({length:NQ}, () => new Int32Array(8)); for(let i=0;i<NI;i++){ if(F.project !== null && iProj[i] !== F.project) continue; if(F.group && GROUPS[F.group.by].of(i) !== F.group.val) continue; c[Math.min(NQ-1, Math.floor(iTm[i]/3))][iArea[i]]++; } return c; }
-function renderTimeline(){ const c = quarterCounts(), tot = c.map(q => q.reduce((a, b) => a+b, 0)), max = Math.max(1, ...tot), step = [100,200,500,1000,2000,5000].find(s => max/s <= 5) || 5000, top = Math.ceil(max/step)*step;
+function renderTimeline(){ const c = quarterCounts(), tot = c.map(q => q.reduce((a, b) => a+b, 0)), max = Math.max(1, ...tot), step = [100,200,500,1000,2000,5000,10000,20000,50000].find(s => max/s <= 5) || 50000, top = Math.ceil(max/step)*step;
   const W = 720, H = 300, L = 44, B = 26, Tp = 10, pw = (W-L-6)/NQ, bw = pw-6, ph = H-B-Tp, y = v => Tp+ph-v/top*ph, r0 = F.range ? Math.round(F.range[0]/3) : 0, r1 = F.range ? Math.round(F.range[1]/3)-1 : NQ-1;
   let svg = ""; for(let v=0;v<=top;v+=step) svg += `<line x1="${L}" x2="${W-6}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end">${fmt(v)}</text>`;
   c.forEach((q, qi) => { let acc = 0; const x = L+qi*pw+3, dim = F.range && (qi < r0 || qi > r1);
@@ -981,6 +1000,11 @@ function applyLook(){ syncForm(); recolour(); saveLook(); }
 function setView(shape, lay){ if(shape) S.shape = shape; if(lay) S.lay = lay; syncForm(); applyLayout(true); }
 function setColBy(c){ S.colBy = c; if(c !== "heat") F.heat = null; applyLook(); filtersChanged(); }
 const setThermal = on => setColBy(on ? "heat" : "group");
+function setGrow(on){ growing = on; growT = on ? 0 : 2; $("#bGrow").textContent = on ? "Stop" : "Play growth"; $("#bGrow").classList.toggle("pri", on); if(!on) filtersChanged(); }
+const countOf = v => Math.round(100*Math.pow(NI/100, v)/10)*10 >= NI-5 ? NI : Math.max(100, Math.round(100*Math.pow(NI/100, v)/10)*10);      // the slider is logarithmic: 100 items to everything
+function countRead(){ $("#countRead").textContent = fmt(S.count)+" items · "+dateOf(orderTm[S.count-1]).split(" ").slice(1).join(" "); }
+function setCount(n, animate){ S.count = clamp(Math.round(n), 100, NI); $("#sCount").value = Math.log(S.count/100)/Math.log(NI/100); countRead(); if(growing) setGrow(false); applyLayout(animate !== false); filtersChanged(); }
+function setClean(on){ document.body.classList.toggle("clean", on); cssW = 0; if(on) toast("Interface hidden. Press H to bring it back."); }
 function setTurn(on){ S.turn = on; $("#tTurn").setAttribute("aria-pressed", on); }
 document.addEventListener("click", e => { const t = e.target.closest("[data-view],[data-proj],[data-open],[data-go],[data-shape],[data-lay],[data-pal],[data-col],[data-heat],[data-val],[data-clear],[data-year],[data-table],[data-file],[data-toast],[data-show-proj],[data-show-item],[data-tl-proj],.x,.tg"); if(!t) { if(e.target.id === "pal") palOpen(false); return; }
   if(e.target.closest(".sw")) return;
@@ -1009,8 +1033,10 @@ document.addEventListener("click", e => { const t = e.target.closest("[data-view
 $("#groupBy").addEventListener("change", e => { S.by = e.target.value; if(F.group && F.group.by !== S.by) F.group = null; applyLayout(true); filtersChanged(); });
 document.addEventListener("input", e => { const t = e.target;
   if(t.dataset.cg !== undefined){ OV[S.by+":"+t.dataset.cg] = t.value; t.parentElement.style.background = t.value; colourize(); uploadCol(); fillWeb(); saveLook(); return; }      // a group's own colour, from the legend
+  if(t.id === "sCount"){ S.count = countOf(+t.value); countRead(); return; }
   if(t.dataset.s){ S[t.dataset.s] = +t.value; if(t.dataset.s === "scanPos"){ S.sweep = false; $("#tSweep").setAttribute("aria-pressed", false); } saveLook(); return; }
   if(t.id === "cA" || t.id === "cB"){ S.custom = [$("#cA").value, $("#cB").value]; S.pal = "custom"; recolour(); saveLook(); $("#pals [data-pal=custom]").style.background = `linear-gradient(135deg,${S.custom[0]},${S.custom[1]})`; document.documentElement.style.setProperty("--accent", css(palAt(0.45))); } });
+$("#sCount").addEventListener("change", e => setCount(countOf(+e.target.value))); $("#bGrow").onclick = () => setGrow(!growing);
 $("#bColReset").onclick = () => { for(const k in OV) delete OV[k]; applyLook(); };
 $("#bLook").onclick = () => { Object.assign(S, JSON.parse(JSON.stringify(LOOK))); for(const k in OV) delete OV[k]; applyLook(); toast("Look reset."); };
 $("#bReset").onclick = () => homeCam(false); $("#bClear").onclick = () => { F.group = null; F.project = null; F.range = null; F.heat = null; filtersChanged(); };
@@ -1021,12 +1047,13 @@ $("#vpBtn").onclick = () => $("#vp").classList.toggle("open"); $("#searchBtn").o
 addEventListener("keydown", e => { if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k"){ e.preventDefault(); return palOpen($("#pal").hidden); }
   if(!$("#pal").hidden){ if(e.key === "Escape") return palOpen(false); const els = $$("#palOut .ref"); if(e.key === "ArrowDown" || e.key === "ArrowUp"){ e.preventDefault(); palSel = clamp(palSel+(e.key === "ArrowDown" ? 1 : -1), 0, els.length-1); els.forEach((x, k) => x.classList.toggle("sel", k === palSel)); els[palSel] && els[palSel].scrollIntoView({block:"nearest"}); } else if(e.key === "Enter" && els[palSel]) els[palSel].click(); return; }
   if(e.key === "Escape"){ closeDrawer(); selected = -1; } if((e.key === "Enter" || e.key === " ") && e.target.matches(".live .row, .lr")){ e.preventDefault(); e.target.click(); }
-  if(e.key.toLowerCase() === "r" && view === "field" && !e.metaKey && !e.ctrlKey && !e.target.matches("input, select, textarea")){ setTurn(!S.turn); toast(S.turn ? "Rotation on." : "Rotation stopped."); } });
+  if(e.key.toLowerCase() === "r" && view === "field" && !e.metaKey && !e.ctrlKey && !e.target.matches("input, select, textarea")){ setTurn(!S.turn); toast(S.turn ? "Rotation on." : "Rotation stopped."); }
+  if(view === "field" && !e.metaKey && !e.ctrlKey && !e.target.matches("input:not([type=range]), select, textarea")){ const k = e.key.toLowerCase(); if(k === "g") setGrow(!growing); else if(k === "h") setClean(!document.body.classList.contains("clean")); } });
 addEventListener("hashchange", () => go(location.hash.slice(1)));
 
-window.__os = { S, F, cam, OV, setThermal, setColBy, setView, heat, PROJ, NI, N, go, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(pTo[i*3], pTo[i*3+1], pTo[i*3+2], [0,0,0]), zoomAt, title, pick, get insts(){ return insts.length; }, get lines(){ return frameVerts; } };
+window.__os = { S, F, cam, OV, setCount, setGrow, setClean, get growing(){ return growing; }, setThermal, setColBy, setView, heat, PROJ, NI, N, go, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(pTo[i*3], pTo[i*3+1], pTo[i*3+2], [0,0,0]), zoomAt, title, pick, get insts(){ return insts.length; }, get lines(){ return frameVerts; } };
 if(gl){ initGL(); bindInput(); } else $("#stage").innerHTML = '<p style="padding:24px;color:var(--ink-3)">The Field needs WebGL2. The other pages still work.</p>';
-loadLook(); syncForm();
+loadLook(); syncForm(); countRead(); $("#sCount").value = 1;
 applyLayout(false); filtersChanged(); renderInbox(); renderNow();
 // the field condenses into shape the first time the Field is opened
 if(gl && !reduced){ for(let i=0;i<N;i++){ const k = i*3, q = 1.6+1.4*R(); pFrom[k] = pTo[k]*q+gauss()*30; pFrom[k+1] = pTo[k+1]*q+gauss()*30; pFrom[k+2] = pTo[k+2]*q+gauss()*30; } T = 0; uploadAll(); }
