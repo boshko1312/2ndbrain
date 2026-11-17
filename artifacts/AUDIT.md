@@ -503,3 +503,13 @@ Checked: all 27 shape × layout views render without errors; colour by Source ch
 
 Rough: at the full 80,000 items the seed lattice is too fine to see until you zoom in; at that size the picture reads through the year rings, the spiral bands and colour. Size variety is reduced to 30% on this shape so the lattice shows.
 
+### Follow-up: the Body did not look human
+
+The first Body was built from formulas (a dome brain, hoop ribs, drooping stubs for limbs) and read as a mushroom on a fish; its flat Table version read as a figurine. It is now built on the nerve tree from `particle-field-v5.html`: brainstem and cord on the midline, twelve rib nerves, neck, shoulder, four strands down each arm, a pair of nerves per finger, hip, leg and toes, the chain beside the spine, and four rounds of finer branches, grown for the right side and mirrored. The brain is scaled to the figure (it was about twice too large).
+
+- Items sit along the nerves. The tree is cut into short pieces sorted from head to toe, each weighted by length and thickness, so items spread evenly and any share of the record maps to a stretch of the body.
+- Table no longer uses a separate flat outline. It uses the same body and the same stretches as Groups; inside a stretch, pieces are ordered left to right and split by the second property, and colour follows that property.
+- While scanning, the unlit part of the Body stays at 20% in its own colour instead of 3% grey, so the figure does not disappear.
+
+Checked: Whole, Groups and Table render on desktop and phone, and the full click-through flows pass.
+
