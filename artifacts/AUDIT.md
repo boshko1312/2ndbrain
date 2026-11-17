@@ -4,8 +4,9 @@ Deliverables in this folder:
 
 | File | What it is |
 |---|---|
-| `particle-field-v2.html` | The rebuilt prototype. One file, no dependencies, opens straight from disk. |
-| `screenshots/` | Renders of v2 (home view, close-up, inspector, cool colour temperature, mobile). |
+| `particle-field-v3.html` | **Current version.** Dense-dust rebuild made after the reference screenshot arrived. See §7. |
+| `particle-field-v2.html` | First rebuild: CPU N-body-style simulation, bright bloomed look. Kept for comparison. |
+| `screenshots/` | Renders of v2 (`01`–`05`) and v3 (`v3-01`–`v3-05`). |
 | `README.md` | How to run it, controls, URL parameters. |
 | `AUDIT.md` | This document. |
 
@@ -206,3 +207,86 @@ a random graph, and disk orientations are random.
    right for this look but means a foreground cluster cannot hide one behind it.
 8. **Accessibility.** The canvas has no keyboard path to selection other than
    search, and there is no reduced-motion handling.
+
+---
+
+## 7. v3 — after the reference screenshot
+
+The reference (a Mindcorpus clip) showed that v2 was aiming at the wrong look.
+What the reference actually is, and where v2 missed:
+
+| Reference | v2 |
+|---|---|
+| One cohesive, sculptural mass | A spread-out web of separate bright nodes |
+| Hundreds of thousands of tiny grains; form comes from density | ~80k larger sprites; form comes from glow |
+| Matte, muted leaf green, almost no bloom | Saturated cyan/green, heavy bloom, white cores |
+| A "form ↔ layout" control | No equivalent |
+
+The reference's actual shape is a head-and-torso figure, which is the thing you
+said looked creepy, so v3 copies the *material* and not the silhouette.
+
+### What changed
+
+- **Motion moved to the GPU.** Each particle's position is a closed-form
+  function of time evaluated in the vertex shader (a breathing swirl about its
+  cluster axis, or a stream along a braided strand, plus a turbulence
+  displacement). Nothing is simulated per particle on the CPU, so the default
+  is 400k units on desktop (120k on phones) and the slider goes to 1M.
+- **The cluster graph is still force-directed and live** on the main thread
+  (72 nodes, exact O(C²)), driving the Repulsion and Link-tension sliders.
+- **Form slider.** Scales the cluster layout from a merged single mass
+  (`mass`) to the separated graph (`web`). Default 0.3.
+- **Sculpted clouds.** Clusters are clouds, disks or rings, shaped by domain
+  warping and carved with soft voids, plus a loose dust medium around each
+  cluster so neighbours merge into one body.
+- **Matte rendering.** Grain-sized sprites, flatter brightness distribution, a
+  muted moss → leaf → teal palette, bloom at a low default, and a tonemap with
+  a soft ceiling so density reads as tone instead of white-out.
+- **Picking without a CPU copy of the positions.** The shader maths is mirrored
+  in JS (`unitPos`) and evaluated only for the particles that need it: the
+  clicked cluster's members on click, and the selected unit plus its links per
+  frame.
+
+### What was given up
+
+This is a real trade, not a free upgrade:
+
+- **No per-particle physics.** v2's particles orbited under gravity and tides;
+  v3's follow authored motion. Core gravity, Web pull and Spiral arms are gone
+  as sliders; Swirl, Turbulence, Strand flow and Cloud size replace them. Only
+  Repulsion and Link tension are still genuine forces.
+- **No per-unit hover.** Hover identifies clusters only; units are picked on
+  click or from the inspector lists.
+
+### Measurements (same software-rendered container as §3)
+
+- 400k units at 1920×1080: 23–57 fps on the software rasteriser, against
+  13–20 fps for v2 at 80k. Real GPU frame rate is still unmeasured.
+- One-off particle generation: about 220 ms for 300k, 340 ms for 400k, 460 ms
+  to grow to 600k. It runs on the main thread, so changing density causes a
+  brief hitch.
+- Background: all four corners `0,0,0`, 68% of pixels exactly black in the
+  1920×1080 home render.
+- Shader/JS mirror: for sparse outer-halo particles, the JS-predicted screen
+  position landed on a lit pixel in 76 of 88 and 100 of 105 cases, against 2
+  and 5 for a control point 11 px away. The misses are particles too dim to
+  clear the detection threshold.
+- Headless checks passed with no app errors: hover tooltip, click select, unit
+  pick, unit selection from the list with link lines, orbit and zoom, search,
+  density change to 600k with selection kept, new field, 390×844 touch
+  viewport with tap-select.
+
+### Where v3 still falls short of the reference
+
+1. **Close-ups are grainy.** At home distance the mass reads as dense and
+   sculpted. Zoomed well inside it, the grains separate and it looks like
+   speckle with less contrast than the reference (`v3-03-closeup.png`). More
+   particles help; the proper fix is depth-aware sizing or a density pre-pass.
+2. **Faint stripe artefacts** in some small disk clusters when seen close,
+   from the periodic function used to carve voids.
+3. **The mass is lumpier and flatter than the reference's single strong
+   form.** It is a merged graph, not a designed sculpture. A deliberate
+   abstract target shape (a torus knot, a warped shell) that the clusters
+   morph into would get closer, at the cost of the layout meaning less.
+4. **Small clusters** still show as brighter smudges inside the mass.
+5. Limitations 2, 3, 6, 7 and 8 from §6 still apply.
