@@ -493,3 +493,13 @@ Body in Groups and Table first drew one small figure per group (8 figures, or 35
 
 The other shapes still draw one body per group in Groups and Table.
 
+### Follow-up: Sunflower, colour by, swap
+
+- **Sunflower shape** (ninth). Vogel's phyllotaxis model: item k (in date order) at angle k × 137.508° and radius √k. Equal area per item, no gaps or clumps at any record size, and a new item always lands on the rim, so growth playback fills it from the centre outward. Year rings are drawn at √(share of items up to that year). Thread lines join k to k + F for consecutive Fibonacci F, each family only in the radius band where those two items are nearest neighbours (around k ≈ F² / 5.6), which gives the alternating spiral bands of a real seed head.
+- **Colour by**: colour can now stand for a different property than the grouping.
+- **Swap** rows and columns in Table (disabled when the pair cannot be swapped, such as Project rows or Month-of-year columns).
+
+Checked: all 27 shape × layout views render without errors; colour by Source changes the legend to Source, a legend row filters by Source, and the filter survives a change of grouping; swap exchanges Area × Year.
+
+Rough: at the full 80,000 items the seed lattice is too fine to see until you zoom in; at that size the picture reads through the year rings, the spiral bands and colour. Size variety is reduced to 30% on this shape so the lattice shows.
+

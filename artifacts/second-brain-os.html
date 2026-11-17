@@ -122,7 +122,7 @@ body.at-timeline #stage{display:block;left:54%;border-left:.5px solid var(--sep)
 #vp{position:absolute;right:var(--gr);top:14px;width:286px;max-height:calc(100% - 28px);overflow:auto;padding:14px 12px 12px;border-radius:16px;scrollbar-width:thin}
 .gh{margin:16px 6px 6px}
 .gh:first-child{margin-top:2px}
-.shapes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.shapes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .shapes button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0 6px;border-radius:10px;background:var(--fill2);font-size:11px;color:var(--ink-2)}
 .shapes button svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .shapes button:hover{background:var(--fill)}
@@ -145,6 +145,7 @@ select option{background:#2c2c2e;color:#fff}
 input[type=color]{width:30px;height:24px;padding:0;border:0;border-radius:7px;background:none;cursor:pointer;margin-left:6px}
 .foot{margin:7px 6px 0;font-size:12px;color:var(--ink-3)}
 .link{color:var(--accent);font-size:12px}
+.link:disabled{color:var(--ink-3);cursor:default}
 .link:hover{text-decoration:underline}
 .tg{position:relative;width:44px;height:26px;border-radius:13px;background:rgba(120,120,128,.32);flex:none;transition:background .18s}
 .tg::after{content:"";position:absolute;left:2px;top:2px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.3);transition:transform .18s}
@@ -301,6 +302,7 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
             <option value="type">What it is</option><option value="status">Project status</option><option value="year">Year</option></select></div>
           <div class="ir" id="acrossRow" hidden><label for="across">Across</label><select id="across">
             <option value="year">Year</option><option value="moy">Month of year</option><option value="source">Source</option><option value="type">What it is</option><option value="status">Project status</option><option value="area">Area of life</option></select></div>
+          <div class="ir" id="swapRow" hidden><span>Rows and columns</span><button class="link" id="bSwap">Swap</button></div>
         </div>
         <h4 class="cap gh">Record</h4>
         <div class="il">
@@ -311,6 +313,7 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
         <h4 class="cap gh">Colour</h4>
         <div class="il">
           <div class="ir"><span>Shows</span><div class="seg" id="colSeg"><button data-col="group">Groups</button><button data-col="heat">Heat</button></div></div>
+          <div class="ir" id="colPropRow"><label for="colProp">Colour by</label><select id="colProp"><option value="same">Same as grouping</option><option value="area">Area of life</option><option value="project">Project</option><option value="source">Source</option><option value="type">What it is</option><option value="status">Project status</option><option value="year">Year</option></select></div>
           <div class="ir" id="heatRow" hidden><label for="heatBy">Heat is</label><select id="heatBy"><option value="activity">Recent activity</option><option value="age">Age</option><option value="needs">Needs you</option></select></div>
           <div class="ir" id="palRow"><span>Palette</span><div class="pals" id="pals"></div></div>
           <div class="ir" id="customRow" hidden><span>From, to</span><span><input type="color" id="cA" aria-label="Custom palette start"><input type="color" id="cB" aria-label="Custom palette end"></span></div>
@@ -482,7 +485,7 @@ function computeHeat(){ const age = i => NOW_TM-iTm[i];
   else { const ph = new Float32Array(NP+1); let mx = 0; for(let i=0;i<NI;i++) ph[iProj[i]+1] += Math.exp(-age(i)/1.5); const ord = [...ph.keys()].sort((a, b) => ph[a]-ph[b]), rank = new Float32Array(NP+1); ord.forEach((p, j) => rank[p] = j/NP); void mx;      // rank the projects so they spread over the whole ramp
     for(let i=0;i<NI;i++) heat[i] = clamp(0.62*rank[iProj[i]+1]+0.38*Math.exp(-age(i)/9), 0, 1); } }
 const LOOK = { pal:"aurora", custom:["#19ff8c","#35c8ff"], size:1, vary:1, expo:1, glow:0.6, haze:1, dust:1, tw:1, threads:1, depth:1, drift:1, pulse:1, swirl:0.35, turb:0.3, breathe:0.3, spread:1 };
-const S = Object.assign({ shape:"neuron", lay:"whole", by:"area", labels:true, links:true, scaf:true, turn:!reduced, across:"year", colBy:"group", heat:"activity", scan:false, scanPos:0.25, scanT:1, sweep:true, count:NI }, JSON.parse(JSON.stringify(LOOK)));
+const S = Object.assign({ shape:"neuron", lay:"whole", by:"area", labels:true, links:true, scaf:true, turn:!reduced, across:"year", colBy:"group", colProp:"same", heat:"activity", scan:false, scanPos:0.25, scanT:1, sweep:true, count:NI }, JSON.parse(JSON.stringify(LOOK)));
 const F = { group:null, project:null, range:null, heat:null };       // filters: {by,val} | project index | [m0,m1]
 const match = i => (!F.group || GROUPS[F.group.by].of(i) === F.group.val) && (F.project === null || iProj[i] === F.project) && (!F.range || (iTm[i] >= F.range[0] && iTm[i] < F.range[1])) && (F.heat === null || band(heat[i]) === F.heat);
 const anyF = () => !!(F.group || F.project !== null || F.range || F.heat !== null);
@@ -509,7 +512,8 @@ let flBuf = [];                                           // thread and frame li
 const Z4 = [0, 0, 0, 0], fl = (x1, y1, z1, x2, y2, z2, c, a, C = Z4) => flBuf.push(x1, y1, z1, c[0], c[1], c[2], a, C[0], C[1], C[2], C[3], x2, y2, z2, c[0], c[1], c[2], a, C[0], C[1], C[2], C[3]);
 const WHITE = [1, 1, 1], NEUTRAL = [0.62, 0.72, 0.78], hr = n => (hash(n) & 0xffff)/65535;
 const shown = i => RANK[i] < S.count;                     // is this item part of the record at its current size?
-function groupStats(){ const g = GROUPS[S.by], n = g.meta.length, cnt = new Int32Array(n); for(let i=0;i<NI;i++) if(RANK[i] < S.count) cnt[g.of(i)]++; return cnt; }
+const colKey = () => S.colProp !== "same" && GROUPS[S.colProp] ? S.colProp : S.by;      // what colour stands for: the grouping, unless another property is chosen
+function groupStats(key){ const g = GROUPS[key || S.by], n = g.meta.length, cnt = new Int32Array(n); for(let i=0;i<NI;i++) if(RANK[i] < S.count) cnt[g.of(i)]++; return cnt; }
 const unit3 = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0]/l, v[1]/l, v[2]/l]; };
 const cross3 = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
 const fib = (j, n) => { const y = n > 1 ? 1-2*(j+0.5)/n : 0, r = Math.sqrt(1-y*y), a = j*2.39996+0.6; return [r*Math.cos(a), y, r*Math.sin(a)]; };
@@ -620,13 +624,22 @@ const SH = {
     for(let c=1;c<=nc;c++) for(const sd of [-1, 1]){ let p = null; for(let q=0;q<=90;q++){ const y = YT+(YB-YT)*q/90, w = wOf(y), gp = gOf(y), e = [sd*(gp+c/nc*(w-gp)), y, 0]; if(p) seg(it, p, e, c === nc ? 0.42 : 0.13); p = e; } }
     if(nr <= 30) rows.forEach((k, j) => { const y = yAt((edge[j]+edge[j+1])/2), w = wOf(y); if(nr > 12 && yAt(edge[j])-yAt(edge[j+1]) < 0.034) return; labels.push({t:g.meta[k][0], p:W(it, -w, y, 0), c:nr > 12 ? "yr" : "", lead:W(it, 0, y, 0), cen:C}); });
     cols.forEach((k, j) => { const y = nc > 1 ? -0.82+1.08*j/(nc-1) : 0, w = wOf(y), gp = gOf(y); labels.push({t:ac.meta[k][0], p:W(it, gp+(j+0.5)/nc*(w-gp), y, 0), c:"yr", at:W(it, 0.47, y+0.025, 0), lead:W(it, 0, y, 0), cen:C}); }); },
+  sunflower(it){ const items = it.items.slice().sort((a, b) => iTm[a]-iTm[b]), n = items.length, GA = 2.399963229728653, RR = 0.97, C = [it.cx, it.cy, it.cz, it.r];      // a seed head: the k-th item by date sits k golden-angle turns round and √k out, so every item gets the same room and time reads outward like tree rings
+    const dome = r => 0.07*(1-r*r/(RR*RR)), at = k => { const r = RR*Math.sqrt((k+0.5)/n), a = k*GA; return [Math.cos(a)*r, dome(r), Math.sin(a)*r]; };
+    for(let k=0;k<n;k++){ const p = at(k); put(items[k], it, p[0], p[1], p[2]); }
+    for(let F0=2, F=3; F<n; ){ const k0 = F*F/5.62, lo = Math.floor(k0/1.45), hi = Math.min(n-F, Math.ceil(k0*1.45)), m = Math.max(1, Math.round(F/(it.whole ? 34 : 8)));      // the spirals the eye picks out: seed k joins seed k + F, F a Fibonacci number, drawn where that pair sits closest
+      for(let k=lo;k<hi;k++) if((k % F) % m === 0) seg(it, at(k), at(k+F), 0.34);
+      const nx = F0+F; F0 = F; F = nx; }
+    if(it.whole) for(let y=0, k=0;y<YEARS.length && k<n;y++){ let k1 = k; while(k1 < n && iTm[items[k1]] < (y+1)*12) k1++; if(k1 === k) continue;      // one ring per year: its width is how much that year added
+      const r1 = RR*Math.sqrt(k1/n), rm = RR*Math.sqrt((k+k1)/2/n); if(k1 < n) for(let q=0;q<144;q++){ const a = q/144*TAU, b = (q+1)/144*TAU; seg(it, [Math.cos(a)*r1, dome(r1), Math.sin(a)*r1], [Math.cos(b)*r1, dome(r1), Math.sin(b)*r1], 0.7); }
+      labels.push({t:String(2021+y), p:W(it, rm, dome(rm)+0.01, 0), c:"", cen:C}); k = k1; } },
   nebula(it){ const P = parts(it), n = P.n;                                                      // a loose cloud; each part is a clump tied to the centre
     for(let j=0;j<n;j++){ const sd = it.id*131+j*17, d = fib(j, n), dist = n === 1 ? 0 : 0.22+0.52*hr(sd+1), c = [d[0]*dist, d[1]*dist, d[2]*dist], rad = n === 1 ? 0.5 : 0.14+0.4*Math.sqrt(P.share[j]), ax = fib(hash(sd) % 97, 97);
       if(n > 1) seg(it, [0,0,0], c, 0.24);
       for(const i of P.items[j]){ const far = R() < 0.1 ? 2.4 : 1, st = gauss()*rad*0.9*far; put(i, it, c[0]+gauss()*rad*0.45*far+ax[0]*st, c[1]+gauss()*rad*0.45*far+ax[1]*st, c[2]+gauss()*rad*0.45*far+ax[2]*st); }
       partLabel(it, P, j, c[0], c[1]+rad*0.9+0.04, c[2]); } }
 };
-const DISC = {galaxy:1, orbit:1}, CORE = {neuron:0.034, galaxy:0.05, nebula:0.03, globe:0.03, shell:0.06, orbit:0.035, block:0, body:0};
+const DISC = {galaxy:1, orbit:1, sunflower:1}, CORE = {sunflower:0, neuron:0.034, galaxy:0.05, nebula:0.03, globe:0.03, shell:0.06, orbit:0.035, block:0, body:0};
 const mk = (items, cx, cy, cz, r, whole, tilt) => ({items, cx, cy, cz, r, whole, ct:Math.cos(tilt), st:Math.sin(tilt), id:insts.length});
 function buildView(){ const g = GROUPS[S.by], sh = S.shape, lay = S.lay; insts = []; labels = []; brId = 0;
   if(sh === "block") return ({whole:layoutTracks, groups:layoutMosaic, table:layoutMatrix})[lay]();
@@ -705,6 +718,7 @@ function layoutMatrix(){ const g = GROUPS[S.by], ac = ACROSS[S.across], cnt = gr
 }
 const SHAPES = [["neuron","Neuron","A glowing core with a fibre for each part. Items sit along their fibre by date, oldest at the root, newest at the tip."],
   ["galaxy","Galaxy","A spiral with one arm per part. The oldest items sit at the core, the newest at the rim."],
+  ["sunflower","Sunflower","A seed head. Items sit in date order, each a golden-angle turn (137.5°) from the last, so every item gets the same room. Time reads outward like tree rings, and the spirals come in Fibonacci numbers."],
   ["orbit","Orbit","Rings seen from above, one per part. One turn runs from the oldest item to the newest."],
   ["globe","Globe","A ball where each part is a patch."],
   ["shell","Shell","Nested shells with a slice cut out, smallest part in the middle. Old at the bottom, new at the top."],
@@ -713,7 +727,7 @@ const SHAPES = [["neuron","Neuron","A glowing core with a fibre for each part. I
   ["block","Block","Flat blocks. Whole is a timeline, Groups is boxes inside boxes, Table is a grid of counts."]];
 const BODY_LAYS = { whole:"Whole: time runs down the body. The newest part of the record is the brain, one region per group. Older items run down the spine and out along the nerves, oldest at the bottom.", groups:"Groups: still one body. Each group owns its own stretch of it, the first ones as slices of the brain; inside a stretch the newest is at the top.", table:"Table: one body laid flat. Groups run down it, and a second property runs outward from the spine." };
 const LAYS = { whole:"Whole: everything in one body, with the groups as its parts.", groups:"Groups: one body per group, sized by how much is in it.", table:"Table: groups run down, and a second property runs across." };
-const GLYPH = { body:'<ellipse cx="12" cy="6" rx="4.2" ry="3.6"/><path d="M12 9.6V21M12 12.5l-3.5 1.5M12 12.5l3.5 1.5M12 15.5l-4 1.8M12 15.5l4 1.8M12 18.5l-3 1.5M12 18.5l3 1.5"/>', neuron:'<circle cx="12" cy="12" r="2.4"/><path d="M12 9.6V4M9.8 13.2 4.5 17M14.2 13.2 19.5 17M12 4 9 2.5M12 4l3-1.5M4.5 17 3 20M19.5 17l1.5 3"/>', galaxy:'<path d="M12 12c0-3 3-5 6-4M12 12c0 3-3 5-6 4M12 12c3 0 5 3 4 6M12 12c-3 0-5-3-4-6"/><circle cx="12" cy="12" r="1.3"/>', orbit:'<ellipse cx="12" cy="12" rx="9" ry="4.2"/><ellipse cx="12" cy="12" rx="5" ry="2.2"/>', globe:'<circle cx="12" cy="12" r="8.5"/><path d="M5 9c4 2 10 2 14 0M5.5 15.5c4-2 9-2 13 0"/>', shell:'<path d="M12 3.5A8.5 8.5 0 1 0 20.5 12"/><path d="M12 7.5A4.5 4.5 0 1 0 16.5 12"/><circle cx="12" cy="12" r="1"/>', nebula:'<circle cx="8" cy="9" r="3"/><circle cx="16" cy="8" r="2"/><circle cx="15" cy="16" r="3.4"/><circle cx="6.5" cy="17" r="1.5"/>', block:'<rect x="4" y="4" width="7" height="9" rx="1.2"/><rect x="13" y="4" width="7" height="5" rx="1.2"/><rect x="13" y="11" width="7" height="9" rx="1.2"/><rect x="4" y="15" width="7" height="5" rx="1.2"/>' };
+const GLYPH = { sunflower:Array.from({length:21}, (_, k) => { const r = 2.15*Math.sqrt(k+0.5), a = k*2.39996; return `<circle cx="${(12+Math.cos(a)*r).toFixed(1)}" cy="${(12+Math.sin(a)*r).toFixed(1)}" r="${(0.55+0.03*k).toFixed(2)}" fill="currentColor" stroke="none"/>`; }).join(""), body:'<ellipse cx="12" cy="6" rx="4.2" ry="3.6"/><path d="M12 9.6V21M12 12.5l-3.5 1.5M12 12.5l3.5 1.5M12 15.5l-4 1.8M12 15.5l4 1.8M12 18.5l-3 1.5M12 18.5l3 1.5"/>', neuron:'<circle cx="12" cy="12" r="2.4"/><path d="M12 9.6V4M9.8 13.2 4.5 17M14.2 13.2 19.5 17M12 4 9 2.5M12 4l3-1.5M4.5 17 3 20M19.5 17l1.5 3"/>', galaxy:'<path d="M12 12c0-3 3-5 6-4M12 12c0 3-3 5-6 4M12 12c3 0 5 3 4 6M12 12c-3 0-5-3-4-6"/><circle cx="12" cy="12" r="1.3"/>', orbit:'<ellipse cx="12" cy="12" rx="9" ry="4.2"/><ellipse cx="12" cy="12" rx="5" ry="2.2"/>', globe:'<circle cx="12" cy="12" r="8.5"/><path d="M5 9c4 2 10 2 14 0M5.5 15.5c4-2 9-2 13 0"/>', shell:'<path d="M12 3.5A8.5 8.5 0 1 0 20.5 12"/><path d="M12 7.5A4.5 4.5 0 1 0 16.5 12"/><circle cx="12" cy="12" r="1"/>', nebula:'<circle cx="8" cy="9" r="3"/><circle cx="16" cy="8" r="2"/><circle cx="15" cy="16" r="3.4"/><circle cx="6.5" cy="17" r="1.5"/>', block:'<rect x="4" y="4" width="7" height="9" rx="1.2"/><rect x="13" y="4" width="7" height="5" rx="1.2"/><rect x="13" y="11" width="7" height="9" rx="1.2"/><rect x="4" y="15" width="7" height="5" rx="1.2"/>' };
 let T = 1;                                                // transition progress
 const wOf = i => { const w = clamp(T*1.5-pMisc[i*4+2]*0.5, 0, 1); return w*w*(3-2*w); };
 const emis = h => { const c = hex(h), l = 0.3*c[0]+0.59*c[1]+0.11*c[2], o = c.map(v => clamp(l+(v-l)*1.5, 0, 1)), m = Math.max(...o), sat = (m-Math.min(...o))/m; return o.map(v => v/m*(0.5+0.5*Math.min(1, sat*1.6))); };   // glowing version of a swatch colour
@@ -733,11 +747,11 @@ const palAt = u => { const st = stops(), x = clamp(u, 0, 1)*(st.length-1), i = M
 const palMid = () => S.pal === "spectrum" ? [0.6, 0.78, 1.0] : palAt(0.45);
 const toHex = c => "#"+c.map(v => Math.round(clamp(v, 0, 1)*255).toString(16).padStart(2, "0")).join("");
 let grpCols = [], hoverLeg = -1;
-function groupColours(){ const g = GROUPS[S.by], cnt = groupStats(), ord = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") ord.sort((a, b) => cnt[b]-cnt[a]);
+function groupColours(){ const ck = colKey(), g = GROUPS[ck], cnt = groupStats(ck), ord = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(ck !== "year" && ck !== "status") ord.sort((a, b) => cnt[b]-cnt[a]);
   const out = g.meta.map(m => emis(m[1]));
   if(S.pal !== "spectrum") ord.forEach((k, j) => { const c = palAt(ord.length > 1 ? j/(ord.length-1) : 0.5), b = [1, 0.74, 1.14][j % 3]; out[k] = c.map(v => v*b); });
-  for(const k of ord){ const o = OV[S.by+":"+k]; if(o) out[k] = emis(o); } return out; }
-function colourize(){ const g = GROUPS[S.by];
+  for(const k of ord){ const o = OV[ck+":"+k]; if(o) out[k] = emis(o); } return out; }
+function colourize(){ const g = GROUPS[colKey()];
   if(S.colBy === "heat"){ computeHeat(); for(let i=0;i<NI;i++){ const h = heat[i], c0 = rampAt(h), m = Math.max(c0[0], c0[1], c0[2]), c = c0.map(v => v/m), b = 0.5+0.85*h*h; pCol[i*3] = c[0]*b; pCol[i*3+1] = c[1]*b; pCol[i*3+2] = c[2]*b; } }
   else { grpCols = groupColours(); for(let i=0;i<NI;i++){ const k = g.of(i), c = grpCols[k], b = hoverLeg < 0 ? 1 : k === hoverLeg ? 1.5 : 0.35; pCol[i*3] = c[0]*b; pCol[i*3+1] = c[1]*b; pCol[i*3+2] = c[2]*b; } }
   for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pCol[k] = pCol[p]; pCol[k+1] = pCol[p+1]; pCol[k+2] = pCol[p+2]; }
@@ -759,12 +773,12 @@ function applyLayout(animate){
   frameVerts = flBuf.length/11; if(gl && bFrame){ gl.bindBuffer(gl.ARRAY_BUFFER, bFrame); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flBuf.length ? flBuf : 11), gl.DYNAMIC_DRAW); }
   const core = CORE[S.shape];                              // a glowing core at the heart of every body
   for(let q=0;q<NS;q++){ const k = (NI+q)*3; if(!core || !insts.length){ pTo[k] = pTo[k+1] = pTo[k+2] = 0; continue; } const it = insts[q % insts.length], r = it.r*core, c4 = (NI+q)*4; pTo[k] = it.cx+gauss()*r; pTo[k+1] = it.cy+gauss()*r; pTo[k+2] = it.cz+gauss()*r; pCen[c4] = it.cx; pCen[c4+1] = it.cy; pCen[c4+2] = it.cz; pCen[c4+3] = it.r; }
-  const ds = S.lay === "whole" ? 0.9 : 0.5; for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pTo[k] = pTo[p]+dOff[d*3]*ds; pTo[k+1] = pTo[p+1]+dOff[d*3+1]*ds; pTo[k+2] = pTo[p+2]+dOff[d*3+2]*(S.shape === "block" ? 0.3 : ds); }
+  const ds = S.shape === "sunflower" ? 0.12 : S.lay === "whole" ? 0.9 : 0.5; for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pTo[k] = pTo[p]+dOff[d*3]*ds; pTo[k+1] = pTo[p+1]+dOff[d*3+1]*ds; pTo[k+2] = pTo[p+2]+dOff[d*3+2]*(S.shape === "block" ? 0.3 : ds); }
   for(let h=0;h<NH;h++){ const p = hPar[h]*3, k = (HB+h)*3; pTo[k] = pTo[p]; pTo[k+1] = pTo[p+1]; pTo[k+2] = pTo[p+2]; }
   for(let d=0;d<ND;d++) pCen.copyWithin((DB+d)*4, (d % NI)*4, (d % NI)*4+4); for(let h=0;h<NH;h++) pCen.copyWithin((HB+h)*4, hPar[h]*4, hPar[h]*4+4);
   for(let i=0;i<NI;i++) pBirth[i] = RANK[i] < S.count ? RANK[i]/S.count : 9; for(let d=0;d<ND;d++) pBirth[DB+d] = pBirth[d % NI]; for(let h=0;h<NH;h++) pBirth[HB+h] = pBirth[hPar[h]];
   buildWeb(); colourize(); fillWeb(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false); crowdG = crowd();
-  $("#formNote").textContent = SHAPES.find(x => x[0] === S.shape)[2]+" "+(S.shape === "body" ? BODY_LAYS : LAYS)[S.lay];
+  $("#formNote").textContent = SHAPES.find(x => x[0] === S.shape)[2]+" "+(S.shape === "sunflower" && S.lay === "whole" ? "Whole: one head for the whole record, with a ring for each year. Colour shows the group." : (S.shape === "body" ? BODY_LAYS : LAYS)[S.lay]);
   $("#forceNote").textContent = S.shape === "block" ? "Forces do not move flat blocks." : S.shape === "body" ? "The Body does not swirl. The other forces still apply." : "Each body moves about its own centre.";
   $("#bHint").textContent = "Drag to move · right-drag to rotate · scroll to zoom · R rotation · G growth · H hide interface";
 }
@@ -891,7 +905,7 @@ function updateCam(dt){ const k = 1-Math.exp(-dt*6), ks = 1-Math.exp(-dt*3.4);
   for(let c=0;c<4;c++) for(let r=0;r<4;r++) VP[c*4+r] = proj[r]*viewM[c*4]+proj[4+r]*viewM[c*4+1]+proj[8+r]*viewM[c*4+2]+proj[12+r]*viewM[c*4+3]; }
 function project(x, y, z, o){ const w = VP[3]*x+VP[7]*y+VP[11]*z+VP[15]; if(w <= 0.05){ o[2] = -1; return o; } o[0] = ((VP[0]*x+VP[4]*y+VP[8]*z+VP[12])/w*0.5+0.5)*cssW; o[1] = (0.5-(VP[1]*x+VP[5]*y+VP[9]*z+VP[13])/w*0.5)*cssH; o[2] = w; return o; }
 const tp = [0,0,0], lv = [0,0,0]; let anatA = 1;
-const SWMODE = {neuron:1, galaxy:2, orbit:1, globe:2, shell:1, nebula:2, block:0, body:0};      // 1 turns as one piece, 2 turns faster near the centre
+const SWMODE = {sunflower:1, neuron:1, galaxy:2, orbit:1, globe:2, shell:1, nebula:2, block:0, body:0};      // 1 turns as one piece, 2 turns faster near the centre
 let liveT = 0, viewAxis = [0, 1, 0];
 function livePt(x, y, z, cx, cy, cz, cr, o){                // the same forces as live() in the shaders, for picking, labels and links
   if(!(cr > 0)){ o[0] = x; o[1] = y; o[2] = z; return o; }
@@ -984,7 +998,7 @@ function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now
   gl.uniform1f(pL.u.uFade, 0); gl.uniform1f(pL.u.uWave, 0);
   if(lineVerts){ gl.uniform1f(pL.u.uA, 1); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferSubData(gl.ARRAY_BUFFER, 0, lineData.subarray(0, lineVerts*7)); gl.drawArrays(gl.LINES, 0, lineVerts); }
   gl.useProgram(pP.p); const U = pP.u; gl.uniformMatrix4fv(U.uVP, false, VP); gl.uniform1f(U.uT, T); gl.uniform1f(U.uTime, time); gl.uniform1f(U.uAnat, anatA); gl.uniform1f(U.uWave, wave); gl.uniform1f(U.uPx, scene.h/(2*Math.tan(FOV/2)));
-  gl.uniform1f(U.uSize, 4.3*S.size*pxr*DENS_S); gl.uniform1f(U.uK, 6*pxr); crowdNow += (crowdG-crowdNow)*0.08; gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)*DENS_G*crowdNow/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust); gl.uniform1f(U.uHaze, (0.35+0.75*thermA)*S.haze); gl.uniform1f(U.uVary, S.vary); gl.uniform1f(U.uTw, S.tw); gl.uniform1f(U.uDepthF, S.depth); gl.uniform1f(U.uDrift, S.drift); force(U); gl.uniform1f(U.uGrow, growing ? growT : 2); gl.uniform1f(U.uScan, scanA); gl.uniform1f(U.uScanPos, SC.pos); gl.uniform1f(U.uScanT, SC.th); gl.uniform3f(U.uScanAx, SC.k === 0 ? 1 : 0, SC.k === 1 ? 1 : 0, 0);
+  gl.uniform1f(U.uSize, 4.3*S.size*pxr*DENS_S); gl.uniform1f(U.uK, 6*pxr); crowdNow += (crowdG-crowdNow)*0.08; gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)*DENS_G*crowdNow/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust); gl.uniform1f(U.uHaze, (0.35+0.75*thermA)*S.haze); gl.uniform1f(U.uVary, S.vary*(S.shape === "sunflower" ? 0.3 : 1)); gl.uniform1f(U.uTw, S.tw); gl.uniform1f(U.uDepthF, S.depth); gl.uniform1f(U.uDrift, S.drift); force(U); gl.uniform1f(U.uGrow, growing ? growT : 2); gl.uniform1f(U.uScan, scanA); gl.uniform1f(U.uScanPos, SC.pos); gl.uniform1f(U.uScanT, SC.th); gl.uniform3f(U.uScanAx, SC.k === 0 ? 1 : 0, SC.k === 1 ? 1 : 0, 0);
   gl.bindVertexArray(vaoP); gl.drawArrays(gl.POINTS, 0, N);
   gl.bindVertexArray(vaoF); gl.disable(gl.BLEND); gl.useProgram(pD.p); gl.uniform1i(pD.u.uTex, 0); let src = scene;
   for(const m of mips){ gl.bindFramebuffer(gl.FRAMEBUFFER, m.fbo); gl.viewport(0, 0, m.w, m.h); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pD.u.uTexel, 1/src.w, 1/src.h); gl.uniform1f(pD.u.uThr, src === scene ? 0.22 : 0); gl.drawArrays(gl.TRIANGLES, 0, 3); src = m; }
@@ -1004,9 +1018,9 @@ function renderLegend(){
   if(S.colBy === "heat"){ const cnt = [0,0,0,0]; for(let i=0;i<NI;i++) if(RANK[i] < S.count) cnt[band(heat[i])]++; const mid = [0.86, 0.58, 0.32, 0.08];
     $("#legend").innerHTML = `<div class="cap"><span>Heat</span><span>${fmt(S.count)}</span></div><div id="heatBar" style="background:linear-gradient(90deg,${RAMP.map(css).join(",")})"></div><div class="heatEnds"><span>cold</span><span>hot</span></div><p class="heatNote">${HEATS[S.heat]}</p>`+
       BANDS.map((b, k) => `<button data-heat="${k}" class="${F.heat === k ? "on" : ""}"><i class="dot" style="background:${css(rampAt(mid[k]))}"></i><span>${b}</span><span class="num">${fmt(cnt[k])}</span></button>`).join(""); return; }
-  const g = GROUPS[S.by], cnt = groupStats(), ord = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") ord.sort((a, b) => cnt[b]-cnt[a]);
+  const ck = colKey(), g = GROUPS[ck], cnt = groupStats(ck), ord = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(ck !== "year" && ck !== "status") ord.sort((a, b) => cnt[b]-cnt[a]);
   $("#legend").innerHTML = `<div class="cap"><span>${esc(g.name)}</span><span>${fmt(S.count)}</span></div>`+ord.map(k => { const c = toHex(grpCols[k] || [1,1,1]);
-    return `<div class="lr ${F.group && F.group.by === S.by && F.group.val === k ? "on" : ""}" data-val="${k}" role="button" tabindex="0"><label class="sw" style="background:${c}" title="Change this colour"><input type="color" data-cg="${k}" value="${c}" aria-label="Colour for ${esc(g.meta[k][0])}"></label><span>${esc(g.meta[k][0])}</span><span class="num">${fmt(cnt[k])}</span></div>`; }).join(""); }
+    return `<div class="lr ${F.group && F.group.by === ck && F.group.val === k ? "on" : ""}" data-val="${k}" role="button" tabindex="0"><label class="sw" style="background:${c}" title="Change this colour"><input type="color" data-cg="${k}" value="${c}" aria-label="Colour for ${esc(g.meta[k][0])}"></label><span>${esc(g.meta[k][0])}</span><span class="num">${fmt(cnt[k])}</span></div>`; }).join(""); }
 
 /* ------------------------------------------------------------ 5. PAGES */
 const stPill = s => `<span class="st s${s}"><i></i>${STATUS[s][0]}</span>`;
@@ -1090,7 +1104,7 @@ function go(v){ if(!["now","field","timeline","projects","inbox","sources"].incl
 function syncForm(){
   $("#shapeGrid").innerHTML = SHAPES.map(x => `<button data-shape="${x[0]}" class="${x[0] === S.shape ? "on" : ""}"><svg viewBox="0 0 24 24">${GLYPH[x[0]]}</svg>${x[1]}</button>`).join("");
   $$("#laySeg button").forEach(b => b.classList.toggle("on", b.dataset.lay === S.lay)); $("#acrossRow").hidden = S.lay !== "table";
-  $$("#colSeg button").forEach(b => b.classList.toggle("on", b.dataset.col === S.colBy)); const heatOn = S.colBy === "heat"; $("#heatRow").hidden = !heatOn; $("#palRow").hidden = heatOn; $("#customRow").hidden = heatOn || S.pal !== "custom"; $("#colFoot").hidden = heatOn;
+  $$("#colSeg button").forEach(b => b.classList.toggle("on", b.dataset.col === S.colBy)); const heatOn = S.colBy === "heat"; $("#heatRow").hidden = !heatOn; $("#palRow").hidden = heatOn; $("#customRow").hidden = heatOn || S.pal !== "custom"; $("#colFoot").hidden = heatOn; $("#colPropRow").hidden = heatOn; $("#colProp").value = S.colProp; $("#groupBy").value = S.by; $("#across").value = S.across; $("#swapRow").hidden = S.lay !== "table"; $("#bSwap").disabled = !GROUPS[S.across] || !ACROSS[S.by];
   const grad = st => `linear-gradient(135deg,${css(st[0])},${css(st[2])},${css(st[4])})`;
   $("#pals").innerHTML = Object.keys(PAL_NAMES).map(k => { const bg = k === "spectrum" ? `conic-gradient(${AREAS.slice(0, 7).map(a => a[1]).join(",")},${AREAS[0][1]})` : k === "custom" ? `linear-gradient(135deg,${S.custom[0]},${S.custom[1]})` : grad(PALS[k]);
     return `<button data-pal="${k}" class="${k === S.pal ? "on" : ""}" style="background:${bg}" title="${PAL_NAMES[k]}" aria-label="${PAL_NAMES[k]}"></button>`; }).join("");
@@ -1126,7 +1140,7 @@ document.addEventListener("click", e => { const t = e.target.closest("[data-view
   if(d.pal){ S.pal = d.pal; return applyLook(); }
   if(d.col) return setColBy(d.col);
   if(d.heat !== undefined){ const v = +d.heat; F.heat = F.heat === v ? null : v; return filtersChanged(); }
-  if(d.val !== undefined){ const v = +d.val; F.group = F.group && F.group.by === S.by && F.group.val === v ? null : {by:S.by, val:v}; return filtersChanged(); }
+  if(d.val !== undefined){ const v = +d.val; const ck = colKey(); F.group = F.group && F.group.by === ck && F.group.val === v ? null : {by:ck, val:v}; return filtersChanged(); }
   if(d.clear){ if(d.clear === "heat") F.heat = null; else if(d.clear === "group") F.group = null; else if(d.clear === "project") F.project = null; else F.range = null; return filtersChanged(); }
   if(d.year !== undefined){ F.range = d.year === "all" ? null : [+d.year*12, +d.year*12+12]; return filtersChanged(); }
   if(d.table !== undefined){ tlTable = !tlTable; return renderTimeline(); }
@@ -1139,9 +1153,11 @@ document.addEventListener("click", e => { const t = e.target.closest("[data-view
   if(d.proj !== undefined){ palOpen(false); return openProject(+d.proj); }
   if(d.open !== undefined){ palOpen(false); return openItem(+d.open); }
 });
-$("#groupBy").addEventListener("change", e => { S.by = e.target.value; if(F.group && F.group.by !== S.by) F.group = null; applyLayout(true); filtersChanged(); });
+$("#groupBy").addEventListener("change", e => { S.by = e.target.value; if(F.group && F.group.by !== colKey()) F.group = null; syncForm(); applyLayout(true); filtersChanged(); });
+$("#colProp").addEventListener("change", e => { S.colProp = e.target.value; if(F.group && F.group.by !== colKey()) F.group = null; recolour(); filtersChanged(); });
+$("#bSwap").onclick = () => { const a = S.by, b = S.across; if(!GROUPS[b] || !ACROSS[a]) return; S.by = b; S.across = a; if(F.group && F.group.by !== colKey()) F.group = null; syncForm(); applyLayout(true); filtersChanged(); };
 document.addEventListener("input", e => { const t = e.target;
-  if(t.dataset.cg !== undefined){ OV[S.by+":"+t.dataset.cg] = t.value; t.parentElement.style.background = t.value; colourize(); uploadCol(); fillWeb(); saveLook(); return; }      // a group's own colour, from the legend
+  if(t.dataset.cg !== undefined){ OV[colKey()+":"+t.dataset.cg] = t.value; t.parentElement.style.background = t.value; colourize(); uploadCol(); fillWeb(); saveLook(); return; }      // a group's own colour, from the legend
   if(t.id === "sCount"){ S.count = countOf(+t.value); countRead(); return; }
   if(t.dataset.s){ S[t.dataset.s] = +t.value; if(t.dataset.s === "scanPos"){ S.sweep = false; $("#tSweep").setAttribute("aria-pressed", false); } saveLook(); return; }
   if(t.id === "cA" || t.id === "cB"){ S.custom = [$("#cA").value, $("#cB").value]; S.pal = "custom"; recolour(); saveLook(); $("#pals [data-pal=custom]").style.background = `linear-gradient(135deg,${S.custom[0]},${S.custom[1]})`; document.documentElement.style.setProperty("--accent", css(palAt(0.45))); } });
@@ -1150,7 +1166,7 @@ $("#bColReset").onclick = () => { for(const k in OV) delete OV[k]; applyLook(); 
 $("#bLook").onclick = () => { Object.assign(S, JSON.parse(JSON.stringify(LOOK))); for(const k in OV) delete OV[k]; applyLook(); toast("Look reset."); };
 $("#bReset").onclick = () => homeCam(false); $("#bClear").onclick = () => { F.group = null; F.project = null; F.range = null; F.heat = null; filtersChanged(); };
 $("#legend").addEventListener("mouseover", e => { const b = e.target.closest("[data-val]"); legHover(b ? +b.dataset.val : -1); }); $("#heatBy").value = S.heat; $("#legend").addEventListener("mouseleave", () => legHover(-1));
-$("#across").addEventListener("change", e => { S.across = e.target.value; applyLayout(true); });
+$("#across").addEventListener("change", e => { S.across = e.target.value; syncForm(); applyLayout(true); });
 $("#heatBy").addEventListener("change", e => { S.heat = e.target.value; F.heat = null; recolour(); filtersChanged(); });
 $("#vpBtn").onclick = () => $("#vp").classList.toggle("open"); $("#searchBtn").onclick = () => palOpen(true); $("#searchFab").onclick = () => palOpen(true); $("#palIn").addEventListener("input", palSearch);
 addEventListener("keydown", e => { if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k"){ e.preventDefault(); return palOpen($("#pal").hidden); }
