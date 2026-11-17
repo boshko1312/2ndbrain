@@ -453,7 +453,7 @@ you want to assign them by hand.
 
 Added to `second-brain-os.html`:
 
-- **Body shape** (eighth shape, works in Whole, Groups and Table). Brain, cerebellum, brainstem, 30 vertebrae, arm nerves from the neck, ribs from the chest, leg nerves from the base. Time runs down the body.
+- **Body shape** (eighth shape, works in Whole, Groups and Table, and is one body in all three). Brain, cerebellum, brainstem, 30 vertebrae, arm nerves from the neck, ribs from the chest, leg nerves from the base. Time runs down the body.
 - **Forces group**: swirl (rigid for Neuron, Orbit, Shell; faster near the centre for Galaxy, Globe, Nebula), turbulence, breathe, spread. Every sprite carries its body's centre and radius, and the forces are computed in the vertex shader. The same maths runs in JavaScript for hover, selection ring, labels and link endpoints.
 - **Slice viewer** for Scan: the slab drawn straight on in a small panel, with count and date range.
 
@@ -483,4 +483,13 @@ Still rough:
 - Swirl does nothing on Body or Block; the panel says so, but the slider stays enabled.
 - Scan position ignores the forces: with high spread or turbulence the lit slab is slightly off the drawn plane.
 - Frame rate is still unmeasured on a real GPU.
+
+### Follow-up: one body, not many
+
+Body in Groups and Table first drew one small figure per group (8 figures, or 35 in the table). That contradicts the idea of a second brain, so both now draw a single body:
+
+- **Groups**: groups are ordered by size (years by date). The leading groups whose share is closest to 40% become left-to-right slices of the brain; the rest each take a stretch of the spine in proportion to their share, newest item at the top of the stretch.
+- **Table**: a flat outline (head, neck, shoulders, waist, legs). Rows take height in proportion to their share of the outline's area; columns are nested bands from the spine outward, mirrored left and right. Rows thinner than a label are named in the legend only.
+
+The other shapes still draw one body per group in Groups and Table.
 

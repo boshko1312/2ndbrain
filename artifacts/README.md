@@ -13,7 +13,7 @@ outer halo.
 
 - **Now**: open sessions and one card per project (waiting on you, running, stalled, done).
 - **Field**: every item is a speck. Pick a **shape** (Neuron, Galaxy, Orbit, Globe, Shell, Nebula, Body, Block) and a **layout** (Whole, Groups, Table); every shape works in every layout. Group by area, project, source, type, status or year.
-- **Body**: a nervous system. The newest 40% of the record is the brain (one region per group, plus cerebellum and brainstem); older items run down the spine and out along the nerves, one vertebra per stretch of time, oldest at the bottom. A nerve is drawn only once it holds something.
+- **Body**: a nervous system, and always one body. *Whole*: time runs down it; the newest 40% of the record is the brain (one region per group, plus cerebellum and brainstem), older items run down the spine and out along the nerves, oldest at the bottom. *Groups*: each group owns its own stretch of the same body, the first ones as slices of the brain. *Table*: the body laid flat as a chart; groups run down it and a second property runs outward from the spine.
 - **Colour**: palettes (Aurora, Ember, Orchid, Glacier, Starlight, Spectrum), a custom two-colour palette, a colour of your own for any group from the legend, and a Heat mode. The look is remembered in the browser.
 - **Record size**: shrink the record from 80,000 items down to 100 to see how it looks when you are starting out. **Play growth** (`G`) adds the items in date order, and `H` hides the interface for recording.
 - **Scan**: a slice that sweeps through the picture and lights only the items inside it. A slice viewer shows that slice straight on, with its item count and date range. The whole Body opens with the scan running.

@@ -573,27 +573,53 @@ const SH = {
     const stem = (f, o) => { const c = cen(0); o[0] = c[0]*f; o[1] = BY-0.1+(c[1]-BY+0.1)*f; o[2] = -0.05+(c[2]+0.05)*f; return o; }, q0 = [0, 0, 0], q1 = [0, 0, 0];
     for(let k=0;k<6;k++) seg(it, stem(k/6, q0).slice(), stem((k+1)/6, q1).slice(), 0.8);
     const has = new Uint8Array(NV*n); let vTop = NV;
-    for(let j=0;j<n;j++){ const d0 = fib(j, n), sp = n === 1 ? 9 : 0.3+0.95*Math.sqrt(P.share[j]);
-      for(const i of P.items[j]){
-        if(iTm[i] >= tCut){ const w = R(); let px = 0, py = BY, pz = 0;
+    const inBrain = (i, d0, sp, lo, hi) => { const w = R(); let px = 0, py = BY, pz = 0;
           if(w < 0.09){ const sd = R() < 0.5 ? -1 : 1, u = unit3([gauss(), gauss(), gauss()]), rr = 0.82+0.18*R(); px = sd*0.07+u[0]*0.085*rr; py = BY-0.115+Math.round(u[1]*0.05*rr*90)/90+gauss()*0.0015; pz = -0.14+u[2]*0.075*rr; if(px*sd < 0.004) px = sd*0.004; }      // cerebellum: two small leaves, finely layered
           else if(w < 0.13){ const f = R(), a = R()*TAU, rr = 0.034*(1-0.4*f)*(0.85+0.15*R()); stem(f, q0); px = q0[0]+Math.cos(a)*rr; py = q0[1]; pz = q0[2]+Math.sin(a)*rr; }                                          // brainstem
-          else for(let tr=0;tr<8;tr++){ let x = d0[0]+gauss()*sp, y = d0[1]*0.8+gauss()*sp, z = d0[2]+gauss()*sp; const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l;                                  // cortex: a folded shell with two unequal halves; each part is a region of it
+          else for(let tr=0;tr<8;tr++){ let x, y, z; if(lo !== undefined){ x = lo+R()*(hi-lo); const rr = Math.sqrt(Math.max(0, 1-x*x)), ph = R()*TAU; y = rr*Math.cos(ph); z = rr*Math.sin(ph); } else { x = d0[0]+gauss()*sp; y = d0[1]*0.8+gauss()*sp; z = d0[2]+gauss()*sp; const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l; }                                  // cortex: a folded shell with two unequal halves; each part is a region of it
             const sd = x < 0 ? -1 : 1, lump = 1+0.2*(vnoise(x*1.7+sd*13.7+3, y*1.7+5, z*1.7+8)-0.5), dip = 1-0.3*Math.exp(-(x*x)/0.02)*(y > 0 ? 1 : 0.3), nar = y < 0 ? 1-0.3*y*y : 1;
             const sx = x*0.2*(sd < 0 ? 1.05 : 0.97)*lump*nar, sy = y*0.17*(y < 0 ? 0.72+0.2*x*x : 1)*lump*dip, sz = z*0.25*lump*(1+0.06*sd*z);
             const nz = 0.6*vnoise(sx*22+sd*31.7, sy*22+5.2, sz*18+9.4)+0.4*vnoise(sx*47+3, sy*47+1, sz*40+7), rd = Math.min(Math.abs(nz-0.36), Math.abs(nz-0.5), Math.abs(nz-0.64)), deep = R() < 0.12, sh = deep ? 0.4+0.5*Math.sqrt(R()) : 0.95+0.05*R();
             px = sx*sh; if(Math.abs(px) < 0.015) px = sd*(0.015+Math.abs(gauss())*0.004); py = BY+sy*sh; pz = sz*sh+0.01; if(deep || rd >= 0.016 || R() > 0.95) break; }
-          put(i, it, px, py, pz); continue; }
-        const v = Math.min(NV-1, Math.floor((1-(iTm[i]-t0)/span)*NV)), q = R(); has[v*n+j] = 1; if(v < vTop) vTop = v; const g = n === 1 ? R() : j/n+R()*0.8/n, sd = R() < 0.5 ? -1 : 1;          // spine: one vertebra per stretch of time
+          put(i, it, px, py, pz); };
+    const inSpine = (i, v, g) => { const q = R(), sd = R() < 0.5 ? -1 : 1;
         if(q < 0.2){ const c = cen(v+R()*0.55), a = R()*TAU, rr = 0.024*(0.8+0.4*R())*(1+0.4*v/NV); put(i, it, c[0]+Math.cos(a)*rr, c[1]+gauss()*0.004, c[2]+Math.sin(a)*rr*0.8); }
         else if(q < 0.26){ const c = cen(v+R()*0.55), f = R(); put(i, it, c[0]+gauss()*0.004, c[1]-f*0.018, c[2]-0.03-f*0.04); }
-        else { root(v, sd, g, Math.pow(R(), 0.8), q0); put(i, it, q0[0]+gauss()*0.0035, q0[1]+gauss()*0.0035, q0[2]+gauss()*0.0035); } }
+        else { root(v, sd, g, Math.pow(R(), 0.8), q0); put(i, it, q0[0]+gauss()*0.0035, q0[1]+gauss()*0.0035, q0[2]+gauss()*0.0035); } };
+    if(it.mode === "groups" && n > 1){ const ord = [...Array(n).keys()]; if(S.by === "year") ord.sort((x, y) => P.ord[y]-P.ord[x]);      // still one body: each group owns its own stretch of it, the first ones in the brain
+      let k = 1, cum = 0, best = 9, tot = 0; for(let q=0;q<n-1;q++){ cum += P.share[ord[q]]; if(Math.abs(cum-0.4) < best){ best = Math.abs(cum-0.4); k = q+1; tot = cum; } }
+      let a = 0, xa = -1; ord.forEach((j, q) => { const items = P.items[j].slice().sort((x, y) => iTm[y]-iTm[x]), sh = P.share[j];
+        if(q < k){ const xb = q === k-1 ? 1 : xa+2*sh/tot, xm = (xa+xb)/2; for(const i of items) inBrain(i, null, 0, xa, xb); partLabel(it, P, j, xm*0.2, BY+0.15*Math.sqrt(Math.max(0, 1-xm*xm))+0.01, 0.06, {lead:W(it, xm*0.08, BY-0.12, 0)}); xa = xb; return; }      // brain: slices from left to right, sized by share
+        const b = a+sh/(1-tot), len = items.length; items.forEach((i, x) => { const tv = Math.min(NV-1e-3, (a+(x+R())/len*(b-a))*NV), v = Math.floor(tv); inSpine(i, v, tv-v); });      // spine: a stretch per group, newest at its top
+        const vm = Math.min(NV-1, Math.floor((a+b)/2*NV)), sd = (q-k) % 2 ? 1 : -1, tip = root(vm, sd, 0.5, 0.4, [0, 0, 0]); partLabel(it, P, j, tip[0], tip[1], tip[2]+0.03, {lead:W(it, 0, tip[1]+0.02, tip[2]), solid:true});
+        a = b; });
+      for(let v=0;v<NV;v++){ seg(it, cen(v), cen(v+1), 0.9); for(const g of [0.12, 0.37, 0.62, 0.87]) for(const sd of [-1, 1]){ let p = cen(v); p[1] -= g*DY; for(let q=1;q<=5;q++){ const e = root(v, sd, g, q/5, [0, 0, 0]); seg(it, p, e, 0.42-0.06*q); p = e; } } }
+      return; }
+    for(let j=0;j<n;j++){ const d0 = fib(j, n), sp = n === 1 ? 9 : 0.3+0.95*Math.sqrt(P.share[j]);
+      for(const i of P.items[j]){ if(iTm[i] >= tCut){ inBrain(i, d0, sp); continue; }
+        const v = Math.min(NV-1, Math.floor((1-(iTm[i]-t0)/span)*NV)); has[v*n+j] = 1; if(v < vTop) vTop = v; inSpine(i, v, n === 1 ? R() : j/n+R()*0.8/n); }      // spine: one vertebra per stretch of time
       partLabel(it, P, j, d0[0]*0.2, BY+d0[1]*0.8*0.17, d0[2]*0.25, {lead:W(it, 0, BY, 0)}); }
     for(let v=vTop;v<NV;v++){ seg(it, cen(v), cen(v+1), 0.9);                                     // a nerve is drawn only once it holds something
       for(let j=0;j<n;j++){ if(!has[v*n+j]) continue; for(const sd of [-1, 1]){ const g = n === 1 ? 0.5 : j/n; let p = cen(v); p[1] -= g*DY; for(let q=1;q<=5;q++){ const e = root(v, sd, g, q/5, [0, 0, 0]); seg(it, p, e, 0.42-0.06*q); p = e; } } } }
     for(let v=0;v<vTop;v++) seg(it, cen(v), cen(v+1), 0.9);
     if(it.whole){ const my = tm => MON[Math.floor(tm) % 12]+" "+(2021+Math.floor(tm/12)); labels.push({t:"Brain · since "+my(tCut), p:W(it, 0.3, BY+0.24, 0), c:"yr"});
       for(let yv=Math.ceil(t0/12);yv*12<tCut;yv++) labels.push({t:String(2021+yv), p:W(it, -0.42, 0.42-(1-(yv*12-t0)/span)*1.04, 0), c:"yr", right:true}); } },
+  bodyflat(it){ const g = GROUPS[S.by], ac = ACROSS[S.across], cnt = groupStats(), rows = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by === "year") rows.reverse(); else if(S.by !== "status") rows.sort((x, y) => cnt[y]-cnt[x]);      // one body laid flat: groups run down it, the second property runs outward from the spine
+    const cc = new Int32Array(ac.meta.length); for(const i of it.items) cc[ac.of(i)]++; const cols = [...Array(cc.length).keys()].filter(k => cc[k]), nr = rows.length, nc = cols.length, ri = new Int32Array(cnt.length), ci = new Int32Array(cc.length); rows.forEach((k, j) => ri[k] = j); cols.forEach((k, j) => ci[k] = j);
+    const sm = x => { x = clamp(x, 0, 1); return x*x*(3-2*x); }, YT = 0.925, YB = -1, M = 400, C = [it.cx, it.cy, it.cz, it.r];
+    const wOf = y => y > 0.56 ? Math.max(0.05, 0.215*Math.sqrt(Math.max(0, 1-Math.pow((y-0.745)/0.185, 2)))) : y > 0.44 ? 0.05 : y > 0.3 ? 0.05+0.28*sm((0.44-y)/0.14) : y > -0.3 ? 0.33-0.12*sm((0.3-y)/0.6) : y > -0.48 ? 0.21+0.04*sm((-0.3-y)/0.18) : 0.25-0.15*(-0.48-y)/0.52;      // half-width of the outline: head, neck, shoulders, waist, hips, legs
+    const gOf = y => y > -0.5 ? 0.012 : 0.012+0.035*sm((-0.5-y)/0.25), A = new Float32Array(M+1); for(let q=0;q<M;q++){ const y = YT+(YB-YT)*(q+0.5)/M; A[q+1] = A[q]+Math.max(0, wOf(y)-gOf(y)); }
+    const yAt = a => { let lo = 0, hi = M; while(hi-lo > 1){ const m = (lo+hi) >> 1; if(A[m] <= a) lo = m; else hi = m; } return YT+(YB-YT)*(lo+(a-A[lo])/Math.max(1e-9, A[lo+1]-A[lo]))/M; };      // rows take height in proportion to their share of the outline's area
+    const n = it.items.length, edge = [0]; let acc = 0; rows.forEach(k => { acc += cnt[k]/n; edge.push(Math.min(1, acc)*A[M]); });
+    for(const i of it.items){ const r = ri[g.of(i)], c = ci[ac.of(i)], sd = R() < 0.5 ? -1 : 1; let x = 0, y = 0;
+      for(let tr=0;tr<6;tr++){ y = yAt(edge[r]+R()*(edge[r+1]-edge[r])); const w = wOf(y), gp = gOf(y); x = gp+(c+R())/nc*(w-gp);
+        if(y <= 0.56){ if(R() < 0.72) y = Math.round(y/0.0125)*0.0125+gauss()*0.0012; break; }
+        const nz = 0.6*vnoise(x*sd*24+40, y*24, 7.3)+0.4*vnoise(x*sd*52+3, y*52, 1.7); if(Math.min(Math.abs(nz-0.36), Math.abs(nz-0.5), Math.abs(nz-0.64)) >= 0.014 || R() > 0.9) break; }
+      put(i, it, sd*x, y, gauss()*0.006); }
+    seg(it, [0, YT, 0], [0, -0.5, 0], 0.5); for(let r=1;r<nr;r++){ const y = yAt(edge[r]), w = wOf(y); seg(it, [-w, y, 0], [w, y, 0], 0.4); }
+    for(let c=1;c<=nc;c++) for(const sd of [-1, 1]){ let p = null; for(let q=0;q<=90;q++){ const y = YT+(YB-YT)*q/90, w = wOf(y), gp = gOf(y), e = [sd*(gp+c/nc*(w-gp)), y, 0]; if(p) seg(it, p, e, c === nc ? 0.42 : 0.13); p = e; } }
+    if(nr <= 30) rows.forEach((k, j) => { const y = yAt((edge[j]+edge[j+1])/2), w = wOf(y); if(nr > 12 && yAt(edge[j])-yAt(edge[j+1]) < 0.034) return; labels.push({t:g.meta[k][0], p:W(it, -w, y, 0), c:nr > 12 ? "yr" : "", lead:W(it, 0, y, 0), cen:C}); });
+    cols.forEach((k, j) => { const y = nc > 1 ? -0.82+1.08*j/(nc-1) : 0, w = wOf(y), gp = gOf(y); labels.push({t:ac.meta[k][0], p:W(it, gp+(j+0.5)/nc*(w-gp), y, 0), c:"yr", at:W(it, 0.47, y+0.025, 0), lead:W(it, 0, y, 0), cen:C}); }); },
   nebula(it){ const P = parts(it), n = P.n;                                                      // a loose cloud; each part is a clump tied to the centre
     for(let j=0;j<n;j++){ const sd = it.id*131+j*17, d = fib(j, n), dist = n === 1 ? 0 : 0.22+0.52*hr(sd+1), c = [d[0]*dist, d[1]*dist, d[2]*dist], rad = n === 1 ? 0.5 : 0.14+0.4*Math.sqrt(P.share[j]), ax = fib(hash(sd) % 97, 97);
       if(n > 1) seg(it, [0,0,0], c, 0.24);
@@ -604,6 +630,8 @@ const DISC = {galaxy:1, orbit:1}, CORE = {neuron:0.034, galaxy:0.05, nebula:0.03
 const mk = (items, cx, cy, cz, r, whole, tilt) => ({items, cx, cy, cz, r, whole, ct:Math.cos(tilt), st:Math.sin(tilt), id:insts.length});
 function buildView(){ const g = GROUPS[S.by], sh = S.shape, lay = S.lay; insts = []; labels = []; brId = 0;
   if(sh === "block") return ({whole:layoutTracks, groups:layoutMosaic, table:layoutMatrix})[lay]();
+  if(sh === "body" && lay !== "whole"){ const all = []; for(let i=0;i<NI;i++) if(RANK[i] < S.count) all.push(i); const sc = clamp(Math.pow(S.count/NI, 0.3), 0.2, 1), it = mk(all, 0, 0, 0, 62*sc, true, 0);      // a second brain is one body, however it is arranged
+    it.mode = lay; insts.push(it); viewAxis = [0, 1, 0]; if(lay === "table"){ SH.bodyflat(it); extent = {w:54*sc, h:66*sc, cy:-2.5*sc}; } else { SH.body(it); extent = {w:46*sc, h:71*sc, cy:-3*sc}; } return; }
   const disc = !!DISC[sh], tilt = disc && lay !== "whole" ? 1.0 : 0; viewAxis = [0, Math.cos(tilt), Math.sin(tilt)];                             // discs lie flat when alone and lean toward you in a grid
   if(lay === "whole"){ const all = []; for(let i=0;i<NI;i++) if(RANK[i] < S.count) all.push(i); const sc = clamp(Math.pow(S.count/NI, 0.3), 0.2, 1);      // a small record makes a small body
     const it = mk(all, 0, 0, 0, 62*sc, true, 0); insts.push(it); SH[sh](it); extent = disc ? {w:78*sc, h:62*sc, cy:0} : sh === "body" ? {w:34*sc, h:67*sc, cy:-5*sc} : {w:76*sc, h:74*sc, cy:0}; return; }
@@ -681,8 +709,9 @@ const SHAPES = [["neuron","Neuron","A glowing core with a fibre for each part. I
   ["globe","Globe","A ball where each part is a patch."],
   ["shell","Shell","Nested shells with a slice cut out, smallest part in the middle. Old at the bottom, new at the top."],
   ["nebula","Nebula","A loose cloud where each part is a clump tied to the centre."],
-  ["body","Body","A nervous system. The newest part of the record is the brain, one region per part. Older items run down the spine and out along the nerves, oldest at the bottom."],
+  ["body","Body","A nervous system: one brain, one spine, and the nerves that leave it."],
   ["block","Block","Flat blocks. Whole is a timeline, Groups is boxes inside boxes, Table is a grid of counts."]];
+const BODY_LAYS = { whole:"Whole: time runs down the body. The newest part of the record is the brain, one region per group. Older items run down the spine and out along the nerves, oldest at the bottom.", groups:"Groups: still one body. Each group owns its own stretch of it, the first ones as slices of the brain; inside a stretch the newest is at the top.", table:"Table: one body laid flat. Groups run down it, and a second property runs outward from the spine." };
 const LAYS = { whole:"Whole: everything in one body, with the groups as its parts.", groups:"Groups: one body per group, sized by how much is in it.", table:"Table: groups run down, and a second property runs across." };
 const GLYPH = { body:'<ellipse cx="12" cy="6" rx="4.2" ry="3.6"/><path d="M12 9.6V21M12 12.5l-3.5 1.5M12 12.5l3.5 1.5M12 15.5l-4 1.8M12 15.5l4 1.8M12 18.5l-3 1.5M12 18.5l3 1.5"/>', neuron:'<circle cx="12" cy="12" r="2.4"/><path d="M12 9.6V4M9.8 13.2 4.5 17M14.2 13.2 19.5 17M12 4 9 2.5M12 4l3-1.5M4.5 17 3 20M19.5 17l1.5 3"/>', galaxy:'<path d="M12 12c0-3 3-5 6-4M12 12c0 3-3 5-6 4M12 12c3 0 5 3 4 6M12 12c-3 0-5-3-4-6"/><circle cx="12" cy="12" r="1.3"/>', orbit:'<ellipse cx="12" cy="12" rx="9" ry="4.2"/><ellipse cx="12" cy="12" rx="5" ry="2.2"/>', globe:'<circle cx="12" cy="12" r="8.5"/><path d="M5 9c4 2 10 2 14 0M5.5 15.5c4-2 9-2 13 0"/>', shell:'<path d="M12 3.5A8.5 8.5 0 1 0 20.5 12"/><path d="M12 7.5A4.5 4.5 0 1 0 16.5 12"/><circle cx="12" cy="12" r="1"/>', nebula:'<circle cx="8" cy="9" r="3"/><circle cx="16" cy="8" r="2"/><circle cx="15" cy="16" r="3.4"/><circle cx="6.5" cy="17" r="1.5"/>', block:'<rect x="4" y="4" width="7" height="9" rx="1.2"/><rect x="13" y="4" width="7" height="5" rx="1.2"/><rect x="13" y="11" width="7" height="9" rx="1.2"/><rect x="4" y="15" width="7" height="5" rx="1.2"/>' };
 let T = 1;                                                // transition progress
@@ -735,7 +764,7 @@ function applyLayout(animate){
   for(let d=0;d<ND;d++) pCen.copyWithin((DB+d)*4, (d % NI)*4, (d % NI)*4+4); for(let h=0;h<NH;h++) pCen.copyWithin((HB+h)*4, hPar[h]*4, hPar[h]*4+4);
   for(let i=0;i<NI;i++) pBirth[i] = RANK[i] < S.count ? RANK[i]/S.count : 9; for(let d=0;d<ND;d++) pBirth[DB+d] = pBirth[d % NI]; for(let h=0;h<NH;h++) pBirth[HB+h] = pBirth[hPar[h]];
   buildWeb(); colourize(); fillWeb(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false); crowdG = crowd();
-  $("#formNote").textContent = SHAPES.find(x => x[0] === S.shape)[2]+" "+LAYS[S.lay];
+  $("#formNote").textContent = SHAPES.find(x => x[0] === S.shape)[2]+" "+(S.shape === "body" ? BODY_LAYS : LAYS)[S.lay];
   $("#forceNote").textContent = S.shape === "block" ? "Forces do not move flat blocks." : S.shape === "body" ? "The Body does not swirl. The other forces still apply." : "Each body moves about its own centre.";
   $("#bHint").textContent = "Drag to move · right-drag to rotate · scroll to zoom · R rotation · G growth · H hide interface";
 }
@@ -926,8 +955,9 @@ function placeLabels(){ const show = S.labels && T >= 1, placed = [], H = 19;
     if(!show || tp[2] < 0){ e.style.opacity = 0; if(ld) ld.style.opacity = 0; continue; }
     if(!l.w) l.w = e.offsetWidth || 60; const ax = tp[0], ay = tp[1]; let x, y = ay-H/2, fade = 1, dx = 1, dy = 0;
     if(l.lead){ project(l.lead[0], l.lead[1], l.lead[2], tc); dx = ax-tc[0]; dy = ay-tc[1]; const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n; if(Math.abs(dx) < 0.25){ dx = dx < 0 ? -0.25 : 0.25; }
-      if(tp[2] > tc[2]+2) fade = 0.26;                                   // its region is on the far side
-      x = dx >= 0 ? ax+dx*46 : ax+dx*46-l.w; y = ay+dy*46-H/2; }
+      if(tp[2] > tc[2]+2 && !l.solid) fade = 0.26;                                   // its region is on the far side
+      x = dx >= 0 ? ax+dx*46 : ax+dx*46-l.w; y = ay+dy*46-H/2;
+      if(l.at){ project(l.at[0], l.at[1], l.at[2], tc); dx = tc[0] >= ax ? 1 : -1; dy = 0; x = dx > 0 ? tc[0] : tc[0]-l.w; y = tc[1]-H/2; } }      // a label pinned to its own spot, with a line back to what it names
     else x = l.right ? ax-l.w : l.left ? ax : ax-l.w/2;
     for(let tr=0;tr<10;tr++){ let hit = null; for(const q of placed) if(x < q.x+q.w+4 && x+l.w+4 > q.x && y < q.y+H+3 && y+H+3 > q.y){ hit = q; break; }      // nudge a label that would sit on another one
       if(!hit) break; y = (dy < -0.15 || (tr & 1 && dy <= 0.15)) ? hit.y-H-4 : hit.y+H+4; }
