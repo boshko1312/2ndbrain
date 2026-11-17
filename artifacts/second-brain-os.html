@@ -258,12 +258,13 @@ table.tb th:first-child,table.tb td:first-child{text-align:left}
         </select>
         <h4 class="cap">Show</h4>
         <div class="row"><span>Labels</span><button class="tg" id="tLabels" aria-pressed="true" aria-label="Labels"></button></div>
-        <div class="row"><span>Links of the hovered item</span><button class="tg" id="tLinks" aria-pressed="true" aria-label="Links"></button></div>
+        <div class="row"><span>Links</span><button class="tg" id="tLinks" aria-pressed="true" aria-label="Links"></button></div>
         <div class="row"><span>Spine and nerves</span><button class="tg" id="tScaf" aria-pressed="true" aria-label="Spine and nerves"></button></div>
         <div class="row"><span>Turning</span><button class="tg" id="tTurn" aria-pressed="true" aria-label="Turning"></button></div>
         <h4 class="cap">Drawn</h4>
         <div class="row"><label for="sSize">Point size</label><input type="range" id="sSize" min="0.5" max="2.2" step="0.01" value="1"></div>
-        <div class="row"><label for="sGlow">Glow</label><input type="range" id="sGlow" min="0" max="2" step="0.01" value="0.35"></div>
+        <div class="row"><label for="sGlow">Glow</label><input type="range" id="sGlow" min="0" max="2" step="0.01" value="0.6"></div>
+        <div class="row"><label for="sDust">Fine dust</label><input type="range" id="sDust" min="0" max="2" step="0.01" value="1"></div>
         <div class="row" style="margin-top:8px"><button class="btn" id="bReset">Reset view</button><button class="btn" id="bClear">Clear filters</button></div>
       </div>
       <div id="legend" class="glass"></div>
@@ -379,67 +380,108 @@ const GROUPS = {
   status: {name:"Project status", meta:STATUS,  of:i => iStat[i]},
   year:   {name:"Year",           meta:YEARS,   of:i => Math.min(5, Math.floor(iTm[i]/12))}
 };
-const S = { form:"anatomy", by:"area", labels:true, links:true, scaf:true, turn:!reduced, size:1, glow:0.35 };
+const S = { form:"anatomy", by:"area", labels:true, links:true, scaf:true, turn:!reduced, size:1, glow:0.6, dust:1 };
 const F = { group:null, project:null, range:null };       // filters: {by,val} | project index | [m0,m1]
 const match = i => (!F.group || GROUPS[F.group.by].of(i) === F.group.val) && (F.project === null || iProj[i] === F.project) && (!F.range || (iTm[i] >= F.range[0] && iTm[i] < F.range[1]));
 
 /* ------------------------------------------------------------ 2. LAYOUTS */
 const isBrain = i => { const t = iType[i]; return t === 1 || t === 2 || t === 3 || t === 5; };   // what you concluded sits in the brain; the raw trail sits in the body
+function vnoise(x, y, z){ const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), xf = x-xi, yf = y-yi, zf = z-zi, u = xf*xf*(3-2*xf), v = yf*yf*(3-2*yf), w = zf*zf*(3-2*zf);
+  const h = (a, b, c) => (hash(Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) & 0xffff)/65535, l = (a, b, f) => a+(b-a)*f;
+  return l(l(l(h(xi,yi,zi), h(xi+1,yi,zi), u), l(h(xi,yi+1,zi), h(xi+1,yi+1,zi), u), v), l(l(h(xi,yi,zi+1), h(xi+1,yi,zi+1), u), l(h(xi,yi+1,zi+1), h(xi+1,yi+1,zi+1), u), v), w); }
+const fbm = (x, y, z) => 0.58*vnoise(x, y, z)+0.29*vnoise(x*2.07+11.3, y*2.07+4.1, z*2.07+7.7)+0.13*vnoise(x*4.3+3.1, y*4.3+17.9, z*4.3+1.3);
 const yOf = t => 46-t*118;
-const rOf = t => { if(t < 0.08) return 3; const u = (t-0.08)/0.92; return 3*(1-u)+27*Math.pow(Math.sin(Math.PI*Math.pow(u, 0.72)), 0.85); };
-function rib(t, th0, f, o, k){ const rr = rOf(t), rad = 1.2+(rr-1.2)*f, th = th0+0.42*f; o[k] = Math.cos(th)*rad; o[k+1] = yOf(t)-5*f*f*(rr/27); o[k+2] = Math.sin(th)*rad*0.62; }
+const spX = t => 0.8*Math.sin(t*8.5+1), spZ = t => 3.8*Math.sin(t*5.6+0.5)*(1-0.35*t)-1.6;      // the spine is an S-curve, not a ruler
+const rOf = t => { if(t < 0.08) return 3; const u = (t-0.08)/0.92; return (3*(1-u)+27*Math.pow(Math.sin(Math.PI*Math.pow(u, 0.72)), 0.85))*(1-0.1*Math.exp(-(((u-0.62)/0.1)**2))); };
+function rib(t, th0, f, o, k){ const c = Math.cos(th0), sn = Math.sin(th0), nz = vnoise(c*1.7+4.2, t*7.5, sn*1.7+9.1), n2 = vnoise(c*2.3+1.5, t*19, sn*2.3+6.6);   // every nerve has its own reach and droop
+  t = ribT(t, th0); const rr = rOf(t)*(0.74+0.5*nz)*(1+0.07*c), rad = 1.2+(rr-1.2)*f, th = th0+(0.3+0.3*n2)*f+0.06*Math.sin(f*7+t*90);
+  o[k] = spX(t)+Math.cos(th)*rad; o[k+1] = yOf(t)-(2.5+6*n2)*f*f*(rr/27)+0.5*Math.sin(f*5+t*60)*f; o[k+2] = spZ(t)+Math.sin(th)*rad*0.62; }
 let timeWarp = null;
 function buildWarp(){ const cnt = new Float32Array(NM+1); let tot = 0; for(let i=0;i<NI;i++) if(!isBrain(i)){ cnt[Math.min(NM, Math.floor(iTm[i]))]++; tot++; }
   timeWarp = new Float32Array(NM+2); let acc = 0; for(let m=0;m<=NM;m++){ timeWarp[m] = acc/tot; acc += cnt[m]; } timeWarp[NM+1] = 1; }
 const tOfTime = tm => { const m = Math.min(NM, Math.floor(tm)), f = tm-m, rank = timeWarp[m]+(timeWarp[m+1]-timeWarp[m])*f; return 0.05+0.93*(1-(0.5*tm/NOW_TM+0.5*rank)); };   // newest at the top
-const SEED = [[6.5,62,13.5],[7,68,4],[7,67,-7],[12,57.5,-5],[6,60.5,-14.5],[12,55.5,7],[14,63,0]];   // brain region centre per area (right hemisphere; mirrored on the left)
+/* Brain. Each hemisphere is its own shape: different width and reach, its own lumps, folds and region borders. */
+const BS = 1.25, BPIV = 48, bScale = (o, k) => { o[k] *= BS; o[k+1] = BPIV+(o[k+1]-BPIV)*BS; o[k+2] *= BS; };
+const SEED = [[6.5,62,13.5],[7,68,4],[7,67,-7],[12,57.5,-5],[6,60.5,-14.5],[12,55.5,7],[14,63,0]];   // region centre per area
+const SEEDH = [0, 1].map(() => SEED.map(p => [p[0]+gauss()*1.2, p[1]+gauss()*1.6, p[2]+gauss()*2.6]));
 const sst = (a, b, x) => { x = clamp((x-a)/(b-a), 0, 1); return x*x*(3-2*x); };
-let areaShare = null;
-function brainPoint(area, anchor, o, k){ const sd = R() < 0.5 ? -1 : 1; let px = 0, py = 0, pz = 0, best = 1e9, bx = 0, by = 0, bz = 0, got = 0;
-  for(let t=0;t<22 && got<2;t++){
-    let ex = (SEED[area][0]+gauss()*6.5)/15.5, ey = (SEED[area][1]+gauss()*6-60)/11.5, ez = (SEED[area][2]+gauss()*7.5-1)/19; const d = Math.sqrt(ex*ex+ey*ey+ez*ez) || 1e-3; ex /= d; ey /= d; ez /= d;
-    const ax = Math.abs(ex), fx = 1-0.16*Math.max(0, ez)-0.05*Math.max(0, -ez), fy = ey < 0 ? 0.72+0.33*sst(0.35, 0.7, ax)*(1-sst(0.45, 0.85, Math.abs(ez))) : 1;
-    const sx = ex*15.5*fx, sy = 60+ey*11.5*fy, sz = 1+ez*19;
-    const r1 = Math.sin(1.0*sz+2.3*Math.sin(0.42*sy+0.3*Math.abs(sx))+area*1.3), r2 = Math.sin(0.9*sy+2.0*Math.sin(0.5*sz)+0.8*Math.abs(sx));
-    const deep = R() < 0.12, sh = deep ? 0.35+0.55*Math.sqrt(R()) : (0.93+0.07*R())*(0.985+0.035*Math.abs(r1));
-    px = Math.abs(sx)*sh; py = 60+(sy-60)*sh; pz = 1+(sz-1)*sh; if(px < 0.5) px = 0.5+Math.abs(gauss())*0.5;
-    let nb = 0, nd = 1e9; for(let a=0;a<7;a++){ const q = ((Math.abs(sx)-SEED[a][0])**2+(sy-SEED[a][1])**2+(sz-SEED[a][2])**2)/(0.55+0.9*Math.sqrt(areaShare[a])); if(q < nd){ nd = q; nb = a; } }
-    if(nb !== area && t < 20) continue; if(!deep && (Math.abs(r1) < 0.34 || Math.abs(r2) < 0.2) && R() < 0.96) continue;
+const segD = (px, py, ax, ay, bx, by) => { const dx = bx-ax, dy = by-ay, f = clamp(((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy), 0, 1); return Math.hypot(px-ax-dx*f, py-ay-dy*f); };
+function brainSurface(ex, ey, ez, sd, o){
+  const kx = sd < 0 ? 1.04 : 0.98, ky = sd < 0 ? 0.985 : 1.012, kz = 1+0.06*sd*ez;                  // right frontal and left occipital poles reach further
+  const fx = 1-0.16*Math.max(0, ez)-0.05*Math.max(0, -ez);
+  const temporal = sst(0.3, 0.65, ex)*(1-sst(0.5, 0.85, ez))*(1-sst(0.3, 0.7, -ez)), fy = ey < 0 ? 0.66+0.4*temporal : 0.96;
+  const lump = 1+0.2*(fbm(ex*1.7+sd*13.7+3, ey*1.7+5, ez*1.7+8)-0.5);
+  o[0] = ex*15.5*fx*kx*lump; o[1] = 60+ey*11.5*fy*ky*lump; o[2] = 1+ez*19*kz*lump; }
+let areaShare = null; const S3 = [0,0,0];
+function brainPoint(area, anchor, sd, o, k){ const seed = SEEDH[sd < 0 ? 0 : 1]; let px = 0, py = 0, pz = 0, best = 1e9, bx = 0, by = 0, bz = 0, got = 0;
+  for(let t=0;t<26 && got<2;t++){
+    let ex = (seed[area][0]+gauss()*6.5)/15.5, ey = (seed[area][1]+gauss()*6-60)/11.5, ez = (seed[area][2]+gauss()*7.5-1)/19; const d = Math.sqrt(ex*ex+ey*ey+ez*ez) || 1e-3; ex = Math.abs(ex)/d; ey /= d; ez /= d;
+    brainSurface(ex, ey, ez, sd, S3); const sx = S3[0], sy = S3[1], sz = S3[2];
+    const n = fbm(sx*0.17+sd*31.7+1.3*vnoise(sy*0.1, sz*0.1, 2.2), sy*0.17+5.2, sz*0.14+9.4), rd = Math.min(Math.abs(n-0.36), Math.abs(n-0.5), Math.abs(n-0.64));   // folds: contour lines of warped noise
+    const deep = R() < 0.1, sh = deep ? 0.4+0.5*Math.sqrt(R()) : (0.955+0.045*R())*(0.97+0.45*Math.min(rd, 0.07));
+    px = sx*sh; py = 60+(sy-60)*sh; pz = 1+(sz-1)*sh;
+    const fis = 0.6+0.7*(vnoise(pz*0.13+sd, py*0.13, 4.4)-0.5); if(px < fis) px = fis+Math.abs(gauss())*0.35;      // wandering fissure between the hemispheres
+    let nb = 0, nd = 1e9; for(let a=0;a<7;a++){ const q = ((sx-seed[a][0])**2+(sy-seed[a][1])**2+(sz-seed[a][2])**2)/(0.55+0.9*Math.sqrt(areaShare[a]))+26*(vnoise(sx*0.16+a*5.1, sy*0.16, sz*0.16+sd)-0.5); if(q < nd){ nd = q; nb = a; } }
+    if(nb !== area && t < 24) continue;
+    if(!deep){ const dS = ex > 0.42 ? segD(ez, ey, 0.5, -0.3, -0.3, 0.1) : 1, dC = ey > 0.05 ? segD(ez, ey, 0.02+0.06*sd, 1, 0.16, 0.1) : 1;   // lateral and central sulci
+      if((rd < 0.017 || dS < 0.045 || dC < 0.03) && R() < 0.96) continue; }
     const q = (px-anchor[0])**2+(py-anchor[1])**2+(pz-anchor[2])**2; if(q < best){ best = q; bx = px; by = py; bz = pz; } got++; }
-  if(!got){ bx = px; by = py; bz = pz; } o[k] = bx*sd; o[k+1] = by; o[k+2] = bz; }
-function cerebellum(o, k){ const sd = R() < 0.5 ? -1 : 1; let px = 0, py = 0, pz = 0;
-  for(let t=0;t<6;t++){ const z = R()*2-1, a = R()*TAU, s = Math.sqrt(1-z*z), r = Math.cbrt(R()); px = 4.9+s*Math.cos(a)*r*5; py = 49+z*r*3.7; pz = -9.5+s*Math.sin(a)*r*4.8; if(Math.sin(py*4.2+0.9*Math.sin(px*0.7)+0.5*pz) > -0.1 || R() < 0.06) break; }
-  o[k] = Math.max(0.3, px)*sd; o[k+1] = py; o[k+2] = pz; }
+  if(!got){ bx = px; by = py; bz = pz; } o[k] = bx*sd; o[k+1] = by; o[k+2] = bz; bScale(o, k); }
+function cerebellum(sd, o, k){ let px = 0, py = 0, pz = 0; const rx = sd < 0 ? 5.5 : 4.7;
+  for(let t=0;t<8;t++){ const z = R()*2-1, a = R()*TAU, sq = Math.sqrt(1-z*z), r = Math.cbrt(R())*(0.9+0.25*vnoise(a*1.3+sd*9, z*2, 1.7)); px = 4.6+sq*Math.cos(a)*r*rx; py = 50.2+z*r*3.8; pz = -9.6+sq*Math.sin(a)*r*5.2;
+    if(Math.sin(py*4.4+1.2*Math.sin(px*0.6+sd)+0.5*pz) > 0 || R() < 0.05) break; }
+  o[k] = Math.max(0.35, px)*sd; o[k+1] = py; o[k+2] = pz; bScale(o, k); }
 
-// scaffold: spinal cord, vertebrae, nerve ribs. Not items; never pickable.
-const RIBS = 24, RIBDOTS = 11, LEVELS = 92, scaf = [];
-const levelT = t => 0.05+Math.round((t-0.05)/0.93*LEVELS)/LEVELS*0.93;   // nerves leave the spine at fixed levels
+// scaffold: spinal cord, vertebrae, brainstem (dots) and the nerves (lines). Not items; never pickable.
+const RIBS = 24, RIBSEG = 11, LEVELS = 92, scaf = [];
+const levelT = t => 0.05+Math.round((t-0.05)/0.93*LEVELS)/LEVELS*0.93;
+const ribT = (t, th) => t+0.006*(vnoise(Math.cos(th)*3+2, t*40, Math.sin(th)*3+5)-0.5);   // each nerve leaves the spine a little off its level   // nerves leave the spine at fixed levels
 const ribAngle = (a, r) => Math.PI/2+a*TAU/8+(r-1)*TAU/RIBS;             // three nerves per area sector
 function buildScaffold(){ scaf.length = 0;
-  for(let k=0;k<700;k++){ const t = R(); scaf.push(gauss()*0.22, 47-t*118, gauss()*0.22, 0.95); }
-  for(let v=0;v<48;v++){ const y = 45.5-v*2.45; for(let a=0;a<14;a++){ const th = a/14*TAU; scaf.push(Math.cos(th)*1.5, y+Math.sin(th*2)*0.25, Math.sin(th)*1.1, 0.8); } for(let q=1;q<=4;q++) scaf.push(0, y-q*0.22, -1.1-q*0.5, 0.7); }
-  const o = [0,0,0];
-  for(let m=0;m<=LEVELS;m++){ const t = 0.05+m/LEVELS*0.93; for(let a=0;a<RIBS;a++){ const th = ribAngle(Math.floor(a/3), a % 3); for(let q=1;q<=RIBDOTS;q++){ rib(t, th, q/RIBDOTS, o, 0); scaf.push(o[0], o[1], o[2], 0.2); } } }
-  for(let k=0;k<260;k++){ const f = R(), a = R()*TAU, r = 1.2+2.2*(1-f); scaf.push(Math.cos(a)*r, 46+f*6.5, Math.sin(a)*r*0.8-f*1.5, 0.5); }   // brainstem
+  for(let k=0;k<800;k++){ const t = R(); scaf.push(spX(t)+gauss()*0.2, yOf(t)+1, spZ(t)+gauss()*0.2, 0.95); }
+  for(let v=0;v<48;v++){ const t = 0.004+v/47*0.985, y = yOf(t)-0.4, X = spX(t), Z = spZ(t), w = 1.5-0.5*t; for(let a=0;a<14;a++){ const th = a/14*TAU; scaf.push(X+Math.cos(th)*w, y+Math.sin(th*2)*0.25, Z+Math.sin(th)*w*0.75, 0.8); } for(let q=1;q<=4;q++) scaf.push(X, y-q*0.22, Z-1.1-q*0.5, 0.7); }
+  for(let k=0;k<320;k++){ const f = R(), a = R()*TAU, r = 1.3+2.2*f*f; scaf.push(spX(0)*(1-f)+Math.cos(a)*r, 46+f*8.5, spZ(0)+(-4.5-spZ(0))*f+Math.sin(a)*r*0.8, 0.5); }   // brainstem
 }
-buildWarp(); buildScaffold();
-const NS = scaf.length/4, N = NI+NS;
-const pFrom = new Float32Array(N*3), pTo = new Float32Array(N*3), pCol = new Float32Array(N*3), pMisc = new Float32Array(N*4);   // misc: lit, magnitude, phase, kind
-for(let i=0;i<N;i++){ pMisc[i*4] = 1; pMisc[i*4+1] = i < NI ? Math.pow(R(), 3.2) : scaf[(i-NI)*4+3]; pMisc[i*4+2] = R(); pMisc[i*4+3] = i < NI ? 0 : 1; pCol[i*3] = pCol[i*3+1] = pCol[i*3+2] = 0.9; }
+let nerveData = null, nerveVerts = 0;
+function buildNerves(){ const v = [], o = [0,0,0], p = [0,0,0], put = (q, a) => v.push(q[0], q[1], q[2], 0.78, 0.9, 1, a);
+  for(let m=0;m<=LEVELS;m++){ const t = 0.05+m/LEVELS*0.93; for(let a=0;a<RIBS;a++){ const th = ribAngle(Math.floor(a/3), a % 3); rib(t, th, 0, p, 0);
+      for(let q=1;q<=RIBSEG;q++){ rib(t, th, q/RIBSEG, o, 0); put(p, 0.55*(1-0.75*(q-1)/RIBSEG)); put(o, 0.55*(1-0.75*q/RIBSEG)); p[0] = o[0]; p[1] = o[1]; p[2] = o[2]; } } }
+  for(let k=0;k<240;k++){ const t0 = k/240, t1 = (k+1)/240; put([spX(t0), yOf(t0)+1, spZ(t0)], 1); put([spX(t1), yOf(t1)+1, spZ(t1)], 1); }
+  nerveData = new Float32Array(v); nerveVerts = v.length/7; }
+buildWarp(); buildScaffold(); buildNerves();
+// fine dust: two faint grains around every item. Texture only; they follow their item and cannot be picked.
+const NS = scaf.length/4, ND = 2*NI, DB = NI+NS, N = NI+NS+ND, dOff = new Float32Array(ND*3);
+for(let d=0;d<ND;d++){ const r = (0.35+Math.abs(gauss())*0.8)*(R() < 0.15 ? 2.2 : 1), z = R()*2-1, a = R()*TAU, q = Math.sqrt(1-z*z); dOff[d*3] = q*Math.cos(a)*r; dOff[d*3+1] = z*r; dOff[d*3+2] = q*Math.sin(a)*r; }
+const pFrom = new Float32Array(N*3), pTo = new Float32Array(N*3), pCol = new Float32Array(N*3), pMisc = new Float32Array(N*4);   // misc: lit, magnitude, phase, kind (0 item, 1 scaffold, 2 dust)
+for(let i=0;i<N;i++){ const kind = i < NI ? 0 : i < DB ? 1 : 2; pMisc[i*4] = 1; pMisc[i*4+2] = R(); pMisc[i*4+3] = kind; pCol[i*3] = pCol[i*3+1] = pCol[i*3+2] = 0.9;
+  pMisc[i*4+1] = kind === 0 ? (R() < 0.03 ? 1 : Math.pow(R(), 3)*0.8) : kind === 1 ? scaf[(i-NI)*4+3] : 0.1+0.3*R()*R(); }
 let labels = [], extent = {w:40, h:70, cy:-6};
 const anatCache = new Float32Array(NI*3); let anatDirty = true;
 function layoutAnatomy(){
   if(anatDirty){ const cnt = new Float32Array(8); let tot = 0; for(let i=0;i<NI;i++) if(isBrain(i)){ cnt[iArea[i]]++; tot++; } areaShare = cnt.map(c => c/Math.max(...cnt.slice(0,7)));
     const anchors = []; for(let p=0;p<NP;p++){ const s = SEED[PROJ[p].area]; anchors.push([s[0]+gauss()*3.5, s[1]+gauss()*3, s[2]+gauss()*4]); }
     for(let i=0;i<NI;i++){ const a = iArea[i], k = i*3;
-      if(isBrain(i)){ if(a === 7) cerebellum(anatCache, k); else brainPoint(a, anchors[iProj[i]], anatCache, k); }
+      const sd = hash(i*5+3) % 100 < 53 ? -1 : 1;
+      if(isBrain(i)){ if(a === 7) cerebellum(sd, anatCache, k); else brainPoint(a, anchors[iProj[i]], sd, anatCache, k); }
       else rib(levelT(tOfTime(iTm[i]))+gauss()*0.0012, ribAngle(a, hash(i*3+1) % 3)+gauss()*0.035, 0.1+0.9*Math.pow(R(), 0.6), anatCache, k); }
-    anatDirty = false; }
+    buildWeb(); anatDirty = false; }
   pTo.set(anatCache);
-  labels = []; for(let y=0;y<6;y++){ const t = tOfTime(y*12+0.01); labels.push({t:String(2021+y), p:[-(rOf(t)+7), yOf(t), 0], c:"yr"}); }
-  if(S.by === "area") for(let a=0;a<7;a++) labels.push({t:AREAS[a][0], p:[SEED[a][0]*1.9+5, 60+(SEED[a][1]-60)*1.7, 1+(SEED[a][2]-1)*1.45], c:""});
-  extent = {w:40, h:80, cy:0};
+  labels = []; for(let y=0;y<6;y++){ const t = tOfTime(y*12+0.01); labels.push({t:String(2021+y), p:[-(rOf(t)+9), yOf(t), 0], c:"yr"}); }
+  if(S.by === "area") for(let a=0;a<7;a++){ const p = [SEED[a][0]*1.9+5, 60+(SEED[a][1]-60)*1.7, 1+(SEED[a][2]-1)*1.45]; bScale(p, 0); labels.push({t:AREAS[a][0], p, c:""}); }
+  extent = {w:46, h:84, cy:4};
 }
+let webPairs = new Int32Array(0), webData = new Float32Array(0);
+function buildWeb(){ const cell = 2.4, grid = new Map(), key = (x, y, z) => ((Math.floor(x/cell)+64) << 14) | ((Math.floor(y/cell)+64) << 7) | (Math.floor(z/cell)+64), ids = [];
+  for(let i=0;i<NI;i++){ if(!isBrain(i)) continue; ids.push(i); const k = key(anatCache[i*3], anatCache[i*3+1], anatCache[i*3+2]); let a = grid.get(k); if(!a) grid.set(k, a = []); a.push(i); }
+  const out = [];
+  for(const i of ids){ const x = anatCache[i*3], y = anatCache[i*3+1], z = anatCache[i*3+2]; let b1 = -1, d1 = 9, b2 = -1, d2 = 9;
+    for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++){ const a = grid.get(key(x+dx*cell, y+dy*cell, z+dz*cell)); if(!a) continue;
+      for(const j of a){ if(j === i || anatCache[j*3]*x < 0) continue; const d = (anatCache[j*3]-x)**2+(anatCache[j*3+1]-y)**2+(anatCache[j*3+2]-z)**2; if(d < d1){ b2 = b1; d2 = d1; b1 = j; d1 = d; } else if(d < d2){ b2 = j; d2 = d; } } }
+    if(b1 >= 0) out.push(i, b1); if(b2 >= 0 && (hash(i) & 1)) out.push(i, b2); }
+  webPairs = Int32Array.from(out); webData = new Float32Array(webPairs.length*7); }
+function fillWeb(){ for(let v=0;v<webPairs.length;v++){ const i = webPairs[v], o = v*7, pr = webPairs[v ^ 1]; webData[o] = anatCache[i*3]; webData[o+1] = anatCache[i*3+1]; webData[o+2] = anatCache[i*3+2];
+    webData[o+3] = pCol[i*3]; webData[o+4] = pCol[i*3+1]; webData[o+5] = pCol[i*3+2]; webData[o+6] = 0.2*Math.min(pMisc[i*4], pMisc[pr*4]); }
+  if(gl && bWeb){ gl.bindBuffer(gl.ARRAY_BUFFER, bWeb); gl.bufferData(gl.ARRAY_BUFFER, webData, gl.DYNAMIC_DRAW); } }
 function groupStats(){ const g = GROUPS[S.by], n = g.meta.length, cnt = new Int32Array(n); for(let i=0;i<NI;i++) cnt[g.of(i)]++; return cnt; }
 function layoutSpheres(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
   const rad = new Float32Array(n), cx = new Float32Array(n), cy = new Float32Array(n), cz = new Float32Array(n); let acc = 0;
@@ -472,17 +514,20 @@ const NOTES = {
 };
 let T = 1;                                                // transition progress
 const wOf = i => { const w = clamp(T*1.5-pMisc[i*4+2]*0.5, 0, 1); return w*w*(3-2*w); };
-function colourize(){ const g = GROUPS[S.by], cols = g.meta.map(m => hex(m[1]).map(v => Math.min(1, v*1.12+0.06)));
-  for(let i=0;i<NI;i++){ const c = cols[g.of(i)]; pCol[i*3] = c[0]; pCol[i*3+1] = c[1]; pCol[i*3+2] = c[2]; } }
+const emis = h => { const c = hex(h), l = 0.3*c[0]+0.59*c[1]+0.11*c[2], o = c.map(v => clamp(l+(v-l)*1.5, 0, 1)), m = Math.max(...o), sat = (m-Math.min(...o))/m; return o.map(v => v/m*(0.5+0.5*Math.min(1, sat*1.6))); };   // glowing version of a swatch colour
+function colourize(){ const g = GROUPS[S.by], cols = g.meta.map(m => emis(m[1]));
+  for(let i=0;i<NI;i++){ const c = cols[g.of(i)]; pCol[i*3] = c[0]; pCol[i*3+1] = c[1]; pCol[i*3+2] = c[2]; }
+  for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pCol[k] = pCol[p]; pCol[k+1] = pCol[p+1]; pCol[k+2] = pCol[p+2]; } }
 function relit(){ const any = F.group || F.project !== null || F.range; let n = 0;
   for(let i=0;i<NI;i++){ const m = !any || match(i); pMisc[i*4] = m ? 1 : 0.085; if(m) n++; }
-  for(let i=NI;i<N;i++) pMisc[i*4] = any ? 0.35 : 1; return n; }
+  for(let i=NI;i<DB;i++) pMisc[i*4] = any ? 0.35 : 1; for(let d=0;d<ND;d++) pMisc[(DB+d)*4] = pMisc[(d % NI)*4]; fillWeb(); return n; }
 function applyLayout(animate){
   for(let i=0;i<N;i++){ const w = wOf(i), k = i*3; pFrom[k] += (pTo[k]-pFrom[k])*w; pFrom[k+1] += (pTo[k+1]-pFrom[k+1])*w; pFrom[k+2] += (pTo[k+2]-pFrom[k+2])*w; }
   ({anatomy:layoutAnatomy, spheres:layoutSpheres, rings:layoutRings, ribbon:layoutRibbon})[S.form]();
   for(let i=0;i<NS;i++){ const k = (NI+i)*3; pTo[k] = scaf[i*4]; pTo[k+1] = scaf[i*4+1]; pTo[k+2] = scaf[i*4+2]; }
-  colourize(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false);
-  $("#formNote").textContent = NOTES[S.form]; $("#bHint").textContent = "Hover a speck to read it · click to open · drag to turn · scroll to zoom";
+  const ds = S.form === "anatomy" ? 0.8 : 1.15; for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pTo[k] = pTo[p]+dOff[d*3]*ds; pTo[k+1] = pTo[p+1]+dOff[d*3+1]*ds; pTo[k+2] = pTo[p+2]+dOff[d*3+2]*ds; }
+  colourize(); fillWeb(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false);
+  $("#formNote").textContent = NOTES[S.form]; $("#bHint").textContent = "Hover a speck to read it · click to open · drag to turn · scroll zooms to the cursor · double-click to dive in";
 }
 
 /* ------------------------------------------------------------ 3. RENDERER */
@@ -491,52 +536,72 @@ const HDR = gl ? !!gl.getExtension("EXT_color_buffer_float") : false;
 function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
 function prog(vs, fs, attrs){ const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); (attrs || []).forEach((a, i) => gl.bindAttribLocation(p, i, a)); gl.linkProgram(p);
   if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for(let i=0;i<n;i++){ const x = gl.getActiveUniform(p, i); u[x.name] = gl.getUniformLocation(p, x.name); } return {p, u}; }
-let pP, pL, pD, pU, pC, vaoP, vaoL, vaoF, bFrom, bTo, bCol, bMisc, bLine;
+let pP, pL, pD, pU, pC, vaoP, vaoL, vaoF, vaoN, vaoW, bFrom, bTo, bCol, bMisc, bLine, bNerve, bWeb = null;
 const MAXV = 8*16*2, lineData = new Float32Array(MAXV*7); let lineVerts = 0;
 function initGL(){
+  const LIVE = `uniform float uTime, uAnat, uWave;
+vec3 live(vec3 P){                                   // the figure breathes: the body swells in a slow wave, the brain pulses
+  if(P.y<48.0){ float s=1.0+uAnat*0.022*sin(uTime*0.9+P.y*0.045); P.xz*=s; }
+  else { float s=1.0+uAnat*0.010*sin(uTime*1.3); P=vec3(0.0,48.0,0.0)+(P-vec3(0.0,48.0,0.0))*s; }
+  return P; }
+float signal(vec3 P){                                // pulses run down the nerves and ripple across the cortex
+  if(P.y<48.0) return pow(max(0.0,sin(P.y*0.08+uTime*1.3)),16.0);
+  vec3 c=vec3(7.0*sin(uTime*0.23),63.0,9.0*cos(uTime*0.19)); return 0.7*pow(max(0.0,sin(length(P-c)*0.5-uTime*1.7)),10.0); }
+`;
   pP = prog(`#version 300 es
 precision highp float;
 in vec3 aFrom; in vec3 aTo; in vec3 aCol; in vec4 aMisc;
-uniform mat4 uVP; uniform float uT, uTime, uPx, uSize, uK, uGain, uScaf, uDist;
-out vec3 vCol;
-void main(){
+uniform mat4 uVP; uniform float uT, uPx, uSize, uK, uGain, uScaf, uDist, uDust;
+out vec3 vCol; out float vHot;
+`+LIVE+`void main(){
   float ph=aMisc.z, w=clamp(uT*1.5-ph*0.5,0.0,1.0); w=w*w*(3.0-2.0*w);
   vec3 d=aTo-aFrom, P=mix(aFrom,aTo,w);
   P+=normalize(cross(d+vec3(0.001),vec3(0.3,1.0,0.2)))*sin(3.14159*w)*length(d)*0.16*(ph-0.5);   // flights arc a little, so a regroup reads as streaks
-  P+=0.22*vec3(sin(uTime*0.7+ph*40.0),sin(uTime*0.6+ph*70.0),sin(uTime*0.5+ph*90.0));
+  P+=0.05*vec3(sin(uTime*0.7+ph*40.0),sin(uTime*0.6+ph*70.0),sin(uTime*0.5+ph*90.0));
+  P=live(P);
   vec4 clip=uVP*vec4(P,1.0); gl_Position=clip;
-  float depth=max(clip.w,0.01), mag=aMisc.y, scaf=aMisc.w;
-  float size=uSize*mix(1.0+1.3*mag,0.7,scaf)*pow((uPx/depth)/uK,0.45), a=1.0;
-  if(size<1.1){ a*=max(size*size/1.21,0.4); size=1.1; }
-  gl_PointSize=min(size,40.0);
-  float tw=1.0+0.18*sin(uTime*(1.0+2.5*fract(ph*7.31))+ph*6.2831);
-  float inten=mix(0.55+1.9*mag*mag,mag,scaf)*aMisc.x*mix(1.0,uScaf,scaf)*tw*uGain*a*clamp(1.3-0.4*depth/uDist,0.6,1.2);
-  vec3 c=mix(aCol,vec3(1.0),clamp(mag*0.35,0.0,0.6)); vCol=c*inten;
+  float depth=max(clip.w,0.01), mag=aMisc.y, scaf=step(0.5,aMisc.w)*step(aMisc.w,1.5), dust=step(1.5,aMisc.w);
+  float size=uSize*(1.0+1.7*mag)*mix(1.0,0.62,max(scaf,dust))*pow((uPx/depth)/uK,0.42);
+  gl_PointSize=clamp(size,2.5,72.0);
+  float tw=1.0+0.2*sin(uTime*(1.0+2.5*fract(ph*7.31))+ph*6.2831);
+  float glint=step(0.985,mag)*pow(max(0.0,sin(uTime*(0.5+fract(ph*3.7))+ph*40.0)),8.0);
+  float inten=mix(0.55+3.2*mag*mag,mag*0.6,scaf)*mix(1.0,0.42*uDust,dust)*aMisc.x*mix(1.0,uScaf,scaf)*tw*(1.0+1.6*glint)*uGain*clamp(1.3-0.4*depth/uDist,0.6,1.2);
+  inten*=1.0+uAnat*uWave*1.3*signal(P)*(1.0-0.6*dust);
+  vCol=aCol*inten; vHot=inten*(0.06+0.9*smoothstep(0.5,1.0,mag))*(1.0-dust);
 }`, `#version 300 es
-precision mediump float; in vec3 vCol; out vec4 o;
-void main(){ vec2 p=gl_PointCoord*2.0-1.0; float d2=dot(p,p); if(d2>1.0) discard; o=vec4(vCol*exp(-d2*4.2),1.0); }`, ["aFrom","aTo","aCol","aMisc"]);
+precision mediump float; in vec3 vCol; in float vHot; out vec4 o;
+void main(){ vec2 p=gl_PointCoord*2.0-1.0; float d2=dot(p,p); if(d2>1.0) discard;
+  float q=d2/0.0576, core=1.0/(1.0+q*q*q);          // a crisp bead: flat top, steep edge. It stays sharp at any size.
+  float halo=exp(-d2*5.0)*(1.0-d2)*0.11;
+  o=vec4(vCol*(core*1.35+halo)+vec3(vHot)*core,1.0); }`, ["aFrom","aTo","aCol","aMisc"]);
   pL = prog(`#version 300 es
-in vec3 aP; in vec4 aC; uniform mat4 uVP; out vec4 vC; void main(){ gl_Position=uVP*vec4(aP,1.0); vC=aC; }`, `#version 300 es
+precision highp float;
+in vec3 aP; in vec4 aC; uniform mat4 uVP; uniform float uA; out vec4 vC;
+`+LIVE+`void main(){ vec3 P=live(aP); gl_Position=uVP*vec4(P,1.0); vC=vec4(aC.rgb,aC.a*uA*(1.0+uAnat*uWave*3.0*signal(P))); }`, `#version 300 es
 precision mediump float; in vec4 vC; out vec4 o; void main(){ o=vec4(vC.rgb*vC.a,1.0); }`, ["aP","aC"]);
   const VF = `#version 300 es
 out vec2 vUv; void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); vUv=p; gl_Position=vec4(p*2.0-1.0,0.0,1.0); }`;
   pD = prog(VF, `#version 300 es
-precision highp float; in vec2 vUv; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o;
-void main(){ vec3 c=texture(uTex,vUv).rgb*4.0; c+=texture(uTex,vUv+uTexel*vec2(-1.0,-1.0)).rgb+texture(uTex,vUv+uTexel*vec2(1.0,-1.0)).rgb+texture(uTex,vUv+uTexel*vec2(-1.0,1.0)).rgb+texture(uTex,vUv+uTexel*vec2(1.0,1.0)).rgb; o=vec4(c/8.0,1.0); }`);
+precision highp float; in vec2 vUv; uniform sampler2D uTex; uniform vec2 uTexel; uniform float uThr; out vec4 o;
+void main(){ vec3 c=texture(uTex,vUv).rgb*4.0; c+=texture(uTex,vUv+uTexel*vec2(-1.0,-1.0)).rgb+texture(uTex,vUv+uTexel*vec2(1.0,-1.0)).rgb+texture(uTex,vUv+uTexel*vec2(-1.0,1.0)).rgb+texture(uTex,vUv+uTexel*vec2(1.0,1.0)).rgb;
+  c/=8.0; float l=max(c.r,max(c.g,c.b)); o=vec4(c*max(l-uThr,0.0)/max(l,1e-5),1.0); }`);
   pU = prog(VF, `#version 300 es
-precision highp float; in vec2 vUv; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o;
+precision highp float; in vec2 vUv; uniform sampler2D uTex; uniform vec2 uTexel; uniform float uW; out vec4 o;
 void main(){ vec2 d=uTexel; vec3 c=texture(uTex,vUv).rgb*4.0; c+=(texture(uTex,vUv+vec2(d.x,0.0)).rgb+texture(uTex,vUv-vec2(d.x,0.0)).rgb+texture(uTex,vUv+vec2(0.0,d.y)).rgb+texture(uTex,vUv-vec2(0.0,d.y)).rgb)*2.0;
-  c+=texture(uTex,vUv+d).rgb+texture(uTex,vUv-d).rgb+texture(uTex,vUv+vec2(d.x,-d.y)).rgb+texture(uTex,vUv+vec2(-d.x,d.y)).rgb; o=vec4(c/16.0*0.7,1.0); }`);
+  c+=texture(uTex,vUv+d).rgb+texture(uTex,vUv-d).rgb+texture(uTex,vUv+vec2(d.x,-d.y)).rgb+texture(uTex,vUv+vec2(-d.x,d.y)).rgb; o=vec4(c/16.0*uW,1.0); }`);
   pC = prog(VF, `#version 300 es
 precision highp float; in vec2 vUv; uniform sampler2D uScene, uBloom; uniform float uGlow; out vec4 o;
-void main(){ vec3 s=texture(uScene,vUv).rgb, b=texture(uBloom,vUv).rgb; b*=smoothstep(0.0,0.05,max(b.r,max(b.g,b.b)));
-  vec3 c=(s+b*uGlow)*1.25; float l=max(c.r,max(c.g,c.b)), t=0.96*(1.0-exp(-l*0.9)); c=c*(t/max(l,1e-5)); c=mix(c,vec3(t),smoothstep(3.0,14.0,l)*0.6);
-  c=pow(c,vec3(1.0/1.9)); c=max(c-0.022,0.0)*1.0225; o=vec4(c,1.0); }`);
-  const buf = () => gl.createBuffer(); bFrom = buf(); bTo = buf(); bCol = buf(); bMisc = buf(); bLine = buf();
+void main(){ vec3 s=texture(uScene,vUv).rgb, b=texture(uBloom,vUv).rgb;
+  vec3 c=(s+b*uGlow)*1.2; float l=max(c.r,max(c.g,c.b)), t=0.97*(1.0-exp(-l*0.95)); c=c*(t/max(l,1e-5)); c=mix(c,vec3(t),smoothstep(6.0,30.0,l)*0.45);
+  c=pow(c,vec3(1.0/2.0)); c=max(c-0.02,0.0)*1.0204; o=vec4(c,1.0); }`);
+  const buf = () => gl.createBuffer(); bFrom = buf(); bTo = buf(); bCol = buf(); bMisc = buf(); bLine = buf(); bNerve = buf(); bWeb = buf();
   vaoP = gl.createVertexArray(); gl.bindVertexArray(vaoP);
   [[bFrom,3],[bTo,3],[bCol,3],[bMisc,4]].forEach(([b, n], i) => { gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, n, gl.FLOAT, false, 0, 0); });
   vaoL = gl.createVertexArray(); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferData(gl.ARRAY_BUFFER, lineData.byteLength, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
+  const lineVao = (b, data, usage) => { const v = gl.createVertexArray(); gl.bindVertexArray(v); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, usage);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12); return v; };
+  vaoN = lineVao(bNerve, nerveData, gl.STATIC_DRAW); vaoW = lineVao(bWeb, new Float32Array(7), gl.DYNAMIC_DRAW);
   vaoF = gl.createVertexArray(); gl.bindVertexArray(null);
 }
 function uploadAll(){ if(!gl) return; for(const [b, d] of [[bFrom,pFrom],[bTo,pTo],[bCol,pCol],[bMisc,pMisc]]){ gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); } }
@@ -554,16 +619,16 @@ function resize(){ const w0 = canvas.clientWidth, h0 = canvas.clientHeight; if(!
 /* ------------------------------------------------------------ 4. CAMERA, PICKING, FILTERS */
 let view = "";
 const FOV = 42*Math.PI/180, proj = new Float32Array(16), viewM = new Float32Array(16), VP = new Float32Array(16);
-const cam = {yaw:0.35, pitch:0.06, dist:260, tg:[0,-4,0], gYaw:0.35, gPitch:0.06, gDist:260, gTg:[0,-4,0]};
+const cam = {yaw:0.35, pitch:0.06, dist:260, tg:[0,4,0], gYaw:0.35, gPitch:0.06, gDist:260, gTg:[0,4,0], home:260};
 const flat = () => S.form === "rings" || S.form === "ribbon";
 const panelW = () => (view === "brain" && cssW > 820) ? 280 : 0;      // keep the figure clear of the View panel
 const insetB = () => (view === "brain" && cssW <= 820) ? 140 : 0, insetT = () => (view === "brain" && cssW <= 820) ? 48 : 0;   // phone: legend below, chips above
 function homeCam(keepAngle){ const H = cssH || 800, effH = H-insetB()-insetT(), asp = Math.max(0.3, ((cssW || 1200)-panelW())/effH), d = Math.max(extent.h, extent.w/asp)/Math.tan(FOV/2)*1.16*(H/effH);
-  cam.gDist = d; cam.gTg = [0, extent.cy, 0]; if(!keepAngle){ cam.gPitch = flat() ? 0 : S.form === "anatomy" ? 0.06 : 0.16; if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU; } }
+  cam.gDist = d; cam.home = d; cam.gTg = [0, extent.cy, 0]; if(!keepAngle){ cam.gPitch = flat() ? 0 : S.form === "anatomy" ? 0.06 : 0.16; if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU; } }
 let down = false, clock = 0;
 function updateCam(dt){ const k = 1-Math.exp(-dt*6), ks = 1-Math.exp(-dt*3.4);
-  if(!down && S.turn && !reduced){ if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU+Math.sin(clock*0.25)*0.16; else cam.gYaw += dt*0.07; }
-  cam.gPitch = clamp(cam.gPitch, -1.4, 1.4); cam.gDist = clamp(cam.gDist, 14, 900);
+  if(!down && S.turn && !reduced && cam.gDist > cam.home*0.6){ if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU+Math.sin(clock*0.25)*0.16; else cam.gYaw += dt*0.07; }
+  cam.gPitch = clamp(cam.gPitch, -1.4, 1.4); cam.gDist = clamp(cam.gDist, 5, 900);
   cam.yaw += (cam.gYaw-cam.yaw)*k; cam.pitch += (cam.gPitch-cam.pitch)*k; cam.dist += (cam.gDist-cam.dist)*ks; for(let i=0;i<3;i++) cam.tg[i] += (cam.gTg[i]-cam.tg[i])*ks;
   const cp = Math.cos(cam.pitch), e = [cam.tg[0]+cam.dist*cp*Math.sin(cam.yaw), cam.tg[1]+cam.dist*Math.sin(cam.pitch), cam.tg[2]+cam.dist*cp*Math.cos(cam.yaw)];
   const t = 1/Math.tan(FOV/2), n = Math.max(0.5, cam.dist*0.02), f = 4000; proj.fill(0); proj[0] = t/(cssW/cssH); proj[5] = t; proj[8] = panelW()/cssW; proj[9] = -(insetB()-insetT())/cssH; proj[10] = (f+n)/(n-f); proj[11] = -1; proj[14] = 2*f*n/(n-f);
@@ -571,9 +636,11 @@ function updateCam(dt){ const k = 1-Math.exp(-dt*6), ks = 1-Math.exp(-dt*3.4);
   viewM.set([xx,yx,zx,0, 0,yy,zy,0, xz,yz,zz,0, -(xx*e[0]+xz*e[2]), -(yx*e[0]+yy*e[1]+yz*e[2]), -(zx*e[0]+zy*e[1]+zz*e[2]), 1]);
   for(let c=0;c<4;c++) for(let r=0;r<4;r++) VP[c*4+r] = proj[r]*viewM[c*4]+proj[4+r]*viewM[c*4+1]+proj[8+r]*viewM[c*4+2]+proj[12+r]*viewM[c*4+3]; }
 function project(x, y, z, o){ const w = VP[3]*x+VP[7]*y+VP[11]*z+VP[15]; if(w <= 0.05){ o[2] = -1; return o; } o[0] = ((VP[0]*x+VP[4]*y+VP[8]*z+VP[12])/w*0.5+0.5)*cssW; o[1] = (0.5-(VP[1]*x+VP[5]*y+VP[9]*z+VP[13])/w*0.5)*cssH; o[2] = w; return o; }
-const tp = [0,0,0];
+const tp = [0,0,0], lv = [0,0,0]; let anatA = 1;
+function livePos(x, y, z, o){ const tm = reduced ? 0 : clock;                        // JS copy of live() in the shaders
+  if(y < 48){ const q = 1+anatA*0.022*Math.sin(tm*0.9+y*0.045); o[0] = x*q; o[1] = y; o[2] = z*q; } else { const q = 1+anatA*0.010*Math.sin(tm*1.3); o[0] = x*q; o[1] = 48+(y-48)*q; o[2] = z*q; } return o; }
 function pick(mx, my, thr){ if(T < 1) return -1; let best = -1, bd = thr*thr;
-  for(let i=0;i<NI;i++){ if(pMisc[i*4] < 0.5) continue; const k = i*3; project(pTo[k], pTo[k+1], pTo[k+2], tp); if(tp[2] < 0) continue; const dx = tp[0]-mx; if(dx > thr || dx < -thr) continue; const dy = tp[1]-my, d = dx*dx+dy*dy+tp[2]*1e-3; if(d < bd){ bd = d; best = i; } }
+  for(let i=0;i<NI;i++){ if(pMisc[i*4] < 0.5) continue; const k = i*3; livePos(pTo[k], pTo[k+1], pTo[k+2], lv); project(lv[0], lv[1], lv[2], tp); if(tp[2] < 0) continue; const dx = tp[0]-mx; if(dx > thr || dx < -thr) continue; const dy = tp[1]-my, d = dx*dx+dy*dy+tp[2]*1e-3; if(d < bd){ bd = d; best = i; } }
   return best; }
 let hovered = -1, selected = -1, mouse = {x:0, y:0, in:false}, needPick = false;
 const ptrs = new Map(); let moved = 0, pinch = null;
@@ -583,13 +650,17 @@ function bindInput(){
   canvas.addEventListener("pointermove", e => { const r = canvas.getBoundingClientRect(); mouse.x = e.clientX-r.left; mouse.y = e.clientY-r.top; mouse.cx = e.clientX; mouse.cy = e.clientY; mouse.in = true; const p = ptrs.get(e.pointerId);
     if(!p){ if(e.pointerType === "mouse") needPick = true; return; } const dx = e.clientX-p.x, dy = e.clientY-p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx)+Math.abs(dy);
     if(ptrs.size === 1){ if(p.b === 2 || p.sh) panBy(dx, dy); else { cam.gYaw -= dx*0.005; cam.gPitch += dy*0.005; } }
-    else if(ptrs.size === 2){ const [a, b] = [...ptrs.values()], d = Math.hypot(a.x-b.x, a.y-b.y), cx = (a.x+b.x)/2, cy = (a.y+b.y)/2; if(pinch){ cam.gDist *= pinch.d/Math.max(1, d); panBy(cx-pinch.cx, cy-pinch.cy); } pinch = {d, cx, cy}; } });
+    else if(ptrs.size === 2){ const [a, b] = [...ptrs.values()], d = Math.hypot(a.x-b.x, a.y-b.y), cx = (a.x+b.x)/2, cy = (a.y+b.y)/2; if(pinch){ const r = canvas.getBoundingClientRect(); zoomAt(cx-r.left, cy-r.top, pinch.d/Math.max(1, d)); panBy(cx-pinch.cx, cy-pinch.cy); } pinch = {d, cx, cy}; } });
   const end = e => { const p = ptrs.get(e.pointerId); if(!p) return; ptrs.delete(e.pointerId); pinch = null; if(ptrs.size) return; down = false; canvas.classList.remove("drag");
     if(moved < 6 && e.type === "pointerup" && p.b === 0){ const r = canvas.getBoundingClientRect(), i = pick(e.clientX-r.left, e.clientY-r.top, e.pointerType === "mouse" ? 11 : 22); if(i >= 0) openItem(i); else { selected = -1; closeDrawer(); } } };
   canvas.addEventListener("pointerup", end); canvas.addEventListener("pointercancel", end);
   canvas.addEventListener("pointerleave", () => { mouse.in = false; hovered = -1; hideTip(); canvas.classList.remove("hot"); });
-  canvas.addEventListener("wheel", e => { e.preventDefault(); cam.gDist *= Math.exp(clamp(e.deltaMode === 1 ? e.deltaY*32 : e.deltaY, -240, 240)*0.0016); }, {passive:false});
+  canvas.addEventListener("wheel", e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); zoomAt(e.clientX-r.left, e.clientY-r.top, Math.exp(clamp(e.deltaMode === 1 ? e.deltaY*32 : e.deltaY, -240, 240)*0.0016)); }, {passive:false});
+  canvas.addEventListener("dblclick", e => { const r = canvas.getBoundingClientRect(); zoomAt(e.clientX-r.left, e.clientY-r.top, 0.42); });
 }
+function zoomAt(mx, my, k){ const nd = clamp(cam.gDist*k, 5, 900), kk = nd/cam.gDist; if(kk === 1) return;      // keep the point under the cursor where it is
+  const nx = (mx/cssW*2-1)+proj[8], ny = (1-my/cssH*2)+proj[9], hh = Math.tan(FOV/2)*cam.gDist, hw = hh*cssW/cssH;
+  for(let i=0;i<3;i++) cam.gTg[i] += (viewM[i*4]*nx*hw+viewM[i*4+1]*ny*hh)*(1-kk); cam.gDist = nd; }
 function panBy(dx, dy){ const s = cam.dist*2*Math.tan(FOV/2)/cssH; for(let i=0;i<3;i++) cam.gTg[i] += (-dx*viewM[i*4]+dy*viewM[i*4+1])*s; }
 function doPick(){ needPick = false; if(down || !mouse.in) return; const i = pick(mouse.x, mouse.y, 10); hovered = i; canvas.classList.toggle("hot", i >= 0); if(i < 0){ hideTip(); return; }
   showTip(mouse.cx, mouse.cy, esc(title(i))+"<small>"+esc((iProj[i] < 0 ? "Unsorted" : PROJ[iProj[i]].name)+" · "+SOURCES[iSrc[i]][0]+" · "+dateOf(iTm[i]))+"</small>"); }
@@ -605,23 +676,30 @@ let labelEls = [];
 function buildLabels(){ const root = $("#labels"); root.innerHTML = ""; labelEls = labels.map(l => { const d = document.createElement("div"); d.className = "lb "+l.c; d.textContent = l.t; root.append(d); return d; }); }
 function placeLabels(){ const show = S.labels && T >= 1; for(let i=0;i<labels.length;i++){ const l = labels[i], e = labelEls[i]; project(l.p[0], l.p[1], l.p[2], tp);
     if(!show || tp[2] < 0){ e.style.opacity = 0; continue; } e.style.opacity = 1; e.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px) translate(${l.right ? "-100%" : "-50%"},-50%)`; }
-  const ring = $("#ring"); if(selected >= 0 && T >= 1){ const k = selected*3; project(pTo[k], pTo[k+1], pTo[k+2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; } else ring.hidden = true; }
-let tPrev = performance.now(), scafA = 1;
+  const ring = $("#ring"); if(selected >= 0 && T >= 1){ const k = selected*3; livePos(pTo[k], pTo[k+1], pTo[k+2], lv); project(lv[0], lv[1], lv[2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; } else ring.hidden = true; }
+let tPrev = performance.now(), scafA = 1, lineA = 0, webA = 0;
+const BLOOM_W = [0, 0.75, 0.5, 0.42];                     // tight bloom: each wider level adds less, so glow stays a halo and never a fog
 function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now-tPrev)/1000); tPrev = now; clock += dt; if(!gl || !resize()) return;
-  if(T < 1) T = Math.min(1, T+dt/1.5); scafA += (((S.form === "anatomy" && S.scaf) ? 1 : 0)-scafA)*(1-Math.exp(-dt*4));
+  const anat = S.form === "anatomy", ease = 1-Math.exp(-dt*4), any = F.group || F.project !== null || F.range;
+  if(T < 1) T = Math.min(1, T+dt/1.5); scafA += ((anat && S.scaf ? 1 : 0)-scafA)*ease; anatA += ((anat ? 1 : 0)-anatA)*ease;
+  lineA += ((anat && S.scaf && T >= 1 ? 1 : 0)-lineA)*ease; webA += ((anat && S.links && T >= 1 ? 1 : 0)-webA)*ease;
   updateCam(dt); if(needPick) doPick(); buildLines(); placeLabels();
+  const time = reduced ? 0 : clock, wave = reduced ? 0 : 1;
   gl.bindFramebuffer(gl.FRAMEBUFFER, scene.fbo); gl.viewport(0, 0, scene.w, scene.h); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
-  gl.useProgram(pP.p); const U = pP.u; gl.uniformMatrix4fv(U.uVP, false, VP); gl.uniform1f(U.uT, T); gl.uniform1f(U.uTime, reduced ? 0 : clock); gl.uniform1f(U.uPx, scene.h/(2*Math.tan(FOV/2)));
-  gl.uniform1f(U.uSize, 1.75*S.size*pxr); gl.uniform1f(U.uK, 6*pxr); gl.uniform1f(U.uGain, (HDR ? 1.15 : 0.6)/Math.pow(Math.max(pxr, 0.5), 1.1)/Math.pow(S.size, 1.1)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist);
+  gl.useProgram(pL.p); gl.uniformMatrix4fv(pL.u.uVP, false, VP); gl.uniform1f(pL.u.uTime, time); gl.uniform1f(pL.u.uAnat, anatA); gl.uniform1f(pL.u.uWave, wave);
+  if(lineA > 0.01){ gl.uniform1f(pL.u.uA, lineA*0.07*(any ? 0.45 : 1)); gl.bindVertexArray(vaoN); gl.drawArrays(gl.LINES, 0, nerveVerts); }
+  if(webA > 0.01 && webPairs.length){ gl.uniform1f(pL.u.uA, webA); gl.bindVertexArray(vaoW); gl.drawArrays(gl.LINES, 0, webPairs.length); }
+  if(lineVerts){ gl.uniform1f(pL.u.uA, 1); gl.uniform1f(pL.u.uWave, 0); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferSubData(gl.ARRAY_BUFFER, 0, lineData.subarray(0, lineVerts*7)); gl.drawArrays(gl.LINES, 0, lineVerts); }
+  gl.useProgram(pP.p); const U = pP.u; gl.uniformMatrix4fv(U.uVP, false, VP); gl.uniform1f(U.uT, T); gl.uniform1f(U.uTime, time); gl.uniform1f(U.uAnat, anatA); gl.uniform1f(U.uWave, wave); gl.uniform1f(U.uPx, scene.h/(2*Math.tan(FOV/2)));
+  gl.uniform1f(U.uSize, 4.3*S.size*pxr); gl.uniform1f(U.uK, 6*pxr); gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust);
   gl.bindVertexArray(vaoP); gl.drawArrays(gl.POINTS, 0, N);
-  if(lineVerts){ gl.useProgram(pL.p); gl.uniformMatrix4fv(pL.u.uVP, false, VP); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferSubData(gl.ARRAY_BUFFER, 0, lineData.subarray(0, lineVerts*7)); gl.drawArrays(gl.LINES, 0, lineVerts); }
   gl.bindVertexArray(vaoF); gl.disable(gl.BLEND); gl.useProgram(pD.p); gl.uniform1i(pD.u.uTex, 0); let src = scene;
-  for(const m of mips){ gl.bindFramebuffer(gl.FRAMEBUFFER, m.fbo); gl.viewport(0, 0, m.w, m.h); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pD.u.uTexel, 1/src.w, 1/src.h); gl.drawArrays(gl.TRIANGLES, 0, 3); src = m; }
+  for(const m of mips){ gl.bindFramebuffer(gl.FRAMEBUFFER, m.fbo); gl.viewport(0, 0, m.w, m.h); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pD.u.uTexel, 1/src.w, 1/src.h); gl.uniform1f(pD.u.uThr, src === scene ? 0.22 : 0); gl.drawArrays(gl.TRIANGLES, 0, 3); src = m; }
   gl.enable(gl.BLEND); gl.useProgram(pU.p); gl.uniform1i(pU.u.uTex, 0);
-  for(let i=mips.length-1;i>0;i--){ const d = mips[i-1], s = mips[i]; gl.bindFramebuffer(gl.FRAMEBUFFER, d.fbo); gl.viewport(0, 0, d.w, d.h); gl.bindTexture(gl.TEXTURE_2D, s.tex); gl.uniform2f(pU.u.uTexel, 1/s.w, 1/s.h); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  for(let i=mips.length-1;i>0;i--){ const d = mips[i-1], s = mips[i]; gl.bindFramebuffer(gl.FRAMEBUFFER, d.fbo); gl.viewport(0, 0, d.w, d.h); gl.bindTexture(gl.TEXTURE_2D, s.tex); gl.uniform2f(pU.u.uTexel, 1/s.w, 1/s.h); gl.uniform1f(pU.u.uW, BLOOM_W[i]); gl.drawArrays(gl.TRIANGLES, 0, 3); }
   gl.disable(gl.BLEND); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height); gl.useProgram(pC.p);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, scene.tex); gl.uniform1i(pC.u.uScene, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, mips[0].tex); gl.uniform1i(pC.u.uBloom, 1);
-  gl.uniform1f(pC.u.uGlow, S.glow); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.activeTexture(gl.TEXTURE0);
+  gl.uniform1f(pC.u.uGlow, S.glow*0.85); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.activeTexture(gl.TEXTURE0);
 }
 function filtersChanged(){ const n = relit(); uploadMisc(); $("#bCount").textContent = (F.group || F.project !== null || F.range) ? fmt(n)+" of "+fmt(NI)+" items lit" : fmt(NI)+" items";
   const chips = []; if(F.group) chips.push(["group", GROUPS[F.group.by].name+": "+GROUPS[F.group.by].meta[F.group.val][0]]); if(F.project !== null) chips.push(["project", "Project: "+PROJ[F.project].name]); if(F.range) chips.push(["range", rangeText()]);
@@ -731,7 +809,7 @@ document.addEventListener("click", e => { const t = e.target.closest("[data-view
   if(d.open !== undefined){ palOpen(false); return openItem(+d.open); }
 });
 $("#groupBy").addEventListener("change", e => { S.by = e.target.value; if(F.group && F.group.by !== S.by) F.group = null; applyLayout(S.form !== "anatomy"); filtersChanged(); });
-$("#sSize").addEventListener("input", e => { S.size = +e.target.value; }); $("#sGlow").addEventListener("input", e => { S.glow = +e.target.value; });
+$("#sSize").addEventListener("input", e => { S.size = +e.target.value; }); $("#sGlow").addEventListener("input", e => { S.glow = +e.target.value; }); $("#sDust").addEventListener("input", e => { S.dust = +e.target.value; });
 $("#bReset").onclick = () => homeCam(false); $("#bClear").onclick = () => { F.group = null; F.project = null; F.range = null; filtersChanged(); };
 $("#vpBtn").onclick = () => $("#vp").classList.toggle("open"); $("#searchBtn").onclick = () => palOpen(true); $("#palIn").addEventListener("input", palSearch);
 addEventListener("keydown", e => { if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k"){ e.preventDefault(); return palOpen($("#pal").hidden); }
@@ -739,10 +817,13 @@ addEventListener("keydown", e => { if((e.metaKey || e.ctrlKey) && e.key.toLowerC
   if(e.key === "Escape"){ closeDrawer(); selected = -1; } if(e.key === "Enter" && e.target.matches(".live .row")) e.target.click(); });
 addEventListener("hashchange", () => go(location.hash.slice(1)));
 
-window.__os = { S, F, cam, PROJ, NI, N, go, setForm, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => [pTo[i*3], pTo[i*3+1], pTo[i*3+2]], isBrain, title, pick };
+window.__os = { S, F, cam, PROJ, NI, N, go, setForm, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(pTo[i*3], pTo[i*3+1], pTo[i*3+2], [0,0,0]), zoomAt, isBrain, title, pick };
 if(gl){ initGL(); bindInput(); } else $("#stage").innerHTML = '<p style="padding:24px;color:var(--ink-3)">The Brain view needs WebGL2. The other pages still work.</p>';
 $$("#formSeg button").forEach(b => b.classList.toggle("on", b.dataset.form === S.form));
-applyLayout(false); filtersChanged(); renderInbox(); renderNow(); go(location.hash.slice(1) || "now"); requestAnimationFrame(frame);
+applyLayout(false); filtersChanged(); renderInbox(); renderNow();
+// the field condenses into shape the first time the Brain is opened
+if(gl && !reduced){ for(let i=0;i<N;i++){ const k = i*3, q = 1.6+1.4*R(); pFrom[k] = pTo[k]*q+gauss()*30; pFrom[k+1] = pTo[k+1]*q+gauss()*30; pFrom[k+2] = pTo[k+2]*q+gauss()*30; } T = 0; uploadAll(); }
+ go(location.hash.slice(1) || "now"); requestAnimationFrame(frame);
 </script>
 </body>
 </html>
