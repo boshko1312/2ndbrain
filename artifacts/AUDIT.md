@@ -4,7 +4,8 @@ Deliverables in this folder:
 
 | File | What it is |
 |---|---|
-| `particle-field-v4.html` | **Current version.** v3 plus the nervous-system layout. See §8. |
+| `particle-field-v5.html` | **Current version.** Nervous system audited and polished: domain-based layout, colour by domain, symmetric nerve tree, flowing fibres. See §9. |
+| `particle-field-v4.html` | First nervous-system layout. See §8. |
 | `particle-field-v3.html` | Dense-dust rebuild made after the reference screenshot arrived. See §7. |
 | `particle-field-v2.html` | First rebuild: CPU N-body-style simulation, bright bloomed look. Kept for comparison. |
 | `screenshots/` | Renders of v2 (`01`–`05`) and v3 (`v3-01`–`v3-05`). |
@@ -341,3 +342,109 @@ There is no face, skull, skin or body outline — only nerves and a brain.
 5. **Left and right are not symmetric** in the fine branches, and the figure
    can look ragged at the hands and feet.
 6. All v3 limitations still apply.
+
+---
+
+## 9. v5 — audit of the v4 nervous system, and the polish pass
+
+### Audit of v4
+
+| Area | Finding in v4 | What v5 does |
+|---|---|---|
+| **Meaning** | Which cluster landed on which body part was arbitrary beyond "largest go to the brain". The picture could not be read. | A layout rule (below). Every region now means something, and a legend explains it. |
+| **Colour** | One green family. Colour carried no information. | One hue per domain, so the body reads as coloured bands and the brain as coloured lobes. |
+| **Brain** | A smooth ovoid with flat patches; from the front, a disc. Cerebellum was a detached blob. | A folded cortical shell with carved grooves, a narrower frontal pole, lower-hanging temporal lobes, a flat underside, and a striped cerebellum tucked beneath. |
+| **Symmetry** | Left and right were grown independently, so fine branches differed and hands and feet looked ragged. | The midline and the right side are grown, then mirrored. |
+| **Nerve tree** | Rib nerves, limb nerves and little else; empty torso and neck. | Adds dorsal root ganglia, cervical/brachial/lumbosacral plexus roots, a sympathetic chain, a vagus with cardiac and solar plexus, paired digital nerves, and a fourth generation of fine branches (about 2,500 side branches in total). |
+| **Motion** | Fibres froze in anatomy mode; only brightness pulsed. | Fibres stream along their nerve route between clusters, and a signal wave travels from the brain down the cord and out to the extremities. |
+| **Hover** | Picked clusters by centre point, so hovering a nerve belonging to a peripheral cluster did nothing. | Picks against 80 sampled member units per cluster, so nerves and lobes respond where they actually are. |
+| **Controls** | Graph-only sliders (Form, Cloud size, Swirl, Repulsion, Link tension) stayed live but did nothing in anatomy mode. | They are shown as inactive in anatomy mode. |
+| **Inspector** | Said "spiral disk" for a cluster drawn as a nerve. | Says where the cluster is: "brain, left hemisphere", "spinal ganglion, chest", "forearms & hands, right". |
+| **Depth** | Flat: front and back of the figure equally bright. | The near side is brighter. |
+| **Phone** | Header overlapped the brain once it grew. | Phone portrait reframes the figure below the header. |
+| **Selection lines** | Link lines were heavier than the particles they connected. | Dimmed. |
+| **Motion preference** | Auto-rotation ignored the OS reduced-motion setting. | Off by default when reduced motion is requested. |
+
+### The layout rule (recommendation, implemented as the default)
+
+Two questions decide where a cluster goes:
+
+1. **How central is it?** decides how high up the hierarchy it sits.
+   - The two **largest** clusters of each domain become **brain lobes**, one in
+     each hemisphere. The brain is the set of hubs.
+   - The two clusters of each domain with the **most links to other domains**
+     become **spinal ganglia**. The cord is the set of connectors, and it is
+     also where cross-body fibres physically run.
+   - The remaining eight spread over the **peripheral nerves**, four on each
+     side. These are the specialised topics.
+2. **Which domain is it in?** decides which body band it lives in, the way a
+   dermatome map assigns skin to spinal segments. Each domain owns one band,
+   its spinal ganglia sit at that band's cord level, and its lobes share its
+   colour.
+
+| Band (head to toe) | Colour | Demo domain |
+|---|---|---|
+| Shoulders & upper arms | cyan | Systems & Code |
+| Forearms & hands | violet | Craft & Design |
+| Chest | emerald | Life & Ideas |
+| Abdomen | gold | Work & Strategy |
+| Hips & thighs | coral | Science |
+| Lower legs & feet | magenta | Mind & Learning |
+
+Unfiled units collect in the cerebellum and the outer dust.
+
+Why this rule: it needs nothing that real notes do not already have (size,
+links, a folder or tag), so it will carry over to real data unchanged; it keeps
+related things together; and isolating a domain shows a complete circuit
+(band, ganglia, lobes, and the fibres between them).
+
+**What is still a judgement call:** which domain gets which band. The table is
+a metaphor chosen for the demo (making things in the hands, and so on). With
+real data I would order domains by size and give the largest the torso, unless
+you want to assign them by hand.
+
+### Colour
+
+- **Colour range** slider: from the original mono green to one hue per domain.
+  Default is nearly full.
+- **Hue shift** rotates the whole palette.
+- Darker hues are lifted so no domain looks weaker than another.
+- Legend chips (head-to-toe order) isolate a domain when clicked.
+
+### Measurements (same software-rendered container as §3; GPU frame rate still unmeasured)
+
+- 400k units at 1920×1080: about 42 fps on the software rasteriser.
+- Particle generation: about 450 ms for 400k; growing from 150k to 600k took
+  760–880 ms. Slower than v4 because brain units are placed by rejection
+  sampling. Still one main-thread hitch per density change.
+- Background: corners `0,0,0`; 88.5% of pixels exactly black at home view.
+- Shader/JS mirror, 10k units, 37 s of simulated time so fibres had moved:
+  predicted positions landed on lit pixels for 97% of cluster units, 97% of
+  fibre units and 90% of halo units fully morphed (control point 17 px away:
+  54%, 44%, 28%). Half-morphed and graph mode gave similar margins.
+- Interaction suite passed with no console warnings or errors: hover on a
+  peripheral nerve, click select, unit pick, list selection, legend domain
+  isolation, orbit and zoom, search, slider changes (anatomy off, mono colour,
+  600k), new field, and a 390×844 touch viewport including tap-select and
+  legend tap.
+
+### Limitations
+
+1. **Neighbouring clusters share nerves.** The four clusters on one side of a
+   band are interleaved along the same branches, so hovering a nerve picks
+   whichever has the nearest sampled unit. In the test, hovering a unit of
+   "Writing" reported its neighbour "Game Design".
+2. **Band assignment is a metaphor**, as above.
+3. **Still stylised.** Routes are plausible, not atlas-accurate. There are no
+   cranial nerves by design, since they would draw a face.
+4. **Sulci are a pattern, not anatomy.** They are regular wavy grooves and do
+   not match real fissures; at home distance they are barely visible.
+5. **The brain is exposed down by a fixed factor** to keep lobes readable. At
+   very low particle counts it can look dim.
+6. **The signal wave is geometric**, based on distance from the brain. It does
+   not follow real link structure.
+7. **Fixed six bands.** A dataset with more or fewer than six domains needs the
+   bands subdivided or merged; that is not built.
+8. **Full colour range is busy.** If it reads as too much, the Colour range
+   slider brings it back toward green.
+9. All v3 limitations still apply (synthetic data, close-up grain, no importer).

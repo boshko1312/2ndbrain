@@ -5,13 +5,14 @@ unit. Units gather into topic clusters that behave like small galaxies; linked
 topics are joined by streaming filaments; unfiled fragments drift in a sparse
 outer halo.
 
-![v4 nervous-system layout](screenshots/v4-01-nervous-system.png)
+![v5 nervous-system layout](screenshots/v5-01-nervous-system.png)
 
 ## Two versions
 
 | File | Look | Particles | Motion |
 |---|---|---|---|
-| `particle-field-v4.html` (current) | v3 plus a nervous-system layout: brain, spinal cord, branching nerves | 400k default, up to 1M | Computed on the GPU |
+| `particle-field-v5.html` (current) | Polished nervous system: each domain owns a coloured body band, hubs in the brain, connectors on the cord | 400k default, up to 1M | Computed on the GPU |
+| `particle-field-v4.html` | First nervous-system layout, single green palette | 400k default, up to 1M | Computed on the GPU |
 | `particle-field-v3.html` | One dense, matte, sculpted dust mass | 400k default, up to 1M | Computed on the GPU |
 | `particle-field-v2.html` | Bright bloomed web of small galaxies | 80k default, up to 150k | CPU simulation in a worker |
 
@@ -37,6 +38,10 @@ one file each, no build step, no network, no dependencies. They need WebGL2.
 | `/` | Search clusters |
 | `Esc` | Deselect |
 
+v5 adds **Colour range** (mono green ↔ one hue per domain), **Hue shift**,
+**Nerve signal**, and a domain legend in the header: click a chip to isolate
+that domain. Hover now works along the nerves themselves.
+
 v4 adds an **Anatomy** slider (off ↔ nerves) above the v3 sliders; it opens in
 the nervous-system layout.
 
@@ -54,7 +59,8 @@ gravity, web pull, repulsion, link tension, spiral arms, turbulence, time.
 |---|---|
 | `?n=60000` | Starting particle count |
 | `?form=0.3` | v3/v4: starting form, 0 (mass) to 1 (web) |
-| `?anat=0` | v4 only: starting anatomy morph, 0 (off) to 1 (nervous system) |
+| `?anat=0` | v4/v5: starting anatomy morph, 0 (off) to 1 (nervous system) |
+| `?range=0` | v5 only: starting colour range, 0 (mono green) to 1 (full) |
 | `?seed=12` | Which field to generate |
 | `?q=0.7` | Lock render resolution scale (disables adaptive scaling) |
 | `?ui=0` | Start with UI hidden |
