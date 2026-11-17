@@ -105,11 +105,16 @@ body.at-timeline #stage{display:block;left:54%;border-left:1px solid var(--line-
 #legend button.on{background:var(--raised);color:var(--ink)}
 #legend button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #legend button .num{font-size:11px;color:var(--ink-3)}
-#vp{position:absolute;right:var(--gr);top:14px;width:256px;max-height:calc(100% - 28px);overflow:auto;padding:14px}
+#vp{position:absolute;right:var(--gr);top:14px;width:272px;max-height:calc(100% - 28px);overflow:auto;padding:14px}
 #vp h4{margin:14px 0 8px}
 #vp h4:first-child{margin-top:0}
-.seg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.seg button{padding:7px 0;font-size:12px;color:var(--ink-3);border-left:1px solid var(--line)}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{flex:1 1 0;min-width:0;padding:7px 0;font-size:12px;color:var(--ink-3);border-left:1px solid var(--line)}
+.seg.sub{margin-top:6px}.seg.sub button{font-size:11.5px;padding:6px 0}
+.row select{width:150px}
+#heatBar{height:8px;border-radius:4px;margin:2px 8px 4px}
+.heatEnds{display:flex;justify-content:space-between;padding:0 8px;font:10px var(--mono);color:var(--ink-3)}
+.heatNote{margin:6px 8px 6px;font-size:12px;color:var(--ink-2)}
 .seg button:first-child{border-left:0}
 .seg button:hover{color:var(--ink)}
 .seg button.on{background:var(--ink);color:#000;font-weight:500}
@@ -247,15 +252,18 @@ table.tb th:first-child,table.tb td:first-child{text-align:left}
       <button id="vpBtn" class="btn glass">View</button>
       <div id="vp" class="glass">
         <h4 class="cap">Form</h4>
-        <div class="seg" id="formSeg">
-          <button data-form="anatomy">Anatomy</button><button data-form="spheres">Spheres</button><button data-form="rings">Rings</button><button data-form="ribbon">Ribbon</button>
-        </div>
+        <div class="seg" id="modeSeg"><button data-mode="anatomy">Anatomy</button><button data-mode="groups">Groups</button><button data-mode="table">Table</button></div>
+        <div class="seg sub" id="formSeg" hidden></div>
+        <div class="row" id="acrossRow" hidden style="margin-top:8px"><label for="across">Across</label><select id="across"><option value="year">Year</option><option value="moy">Month of year</option><option value="source">Source</option><option value="type">What it is</option><option value="status">Project status</option><option value="area">Area of life</option></select></div>
         <p id="formNote"></p>
-        <h4 class="cap">Group and colour by</h4>
-        <select id="groupBy" aria-label="Group and colour by">
+        <h4 class="cap">Group by</h4>
+        <select id="groupBy" aria-label="Group by">
           <option value="area">Area of life</option><option value="project">Project</option><option value="source">Source</option>
           <option value="type">What it is</option><option value="status">Project status</option><option value="year">Year</option>
         </select>
+        <h4 class="cap">Colour</h4>
+        <div class="seg" id="colSeg"><button data-col="group">By group</button><button data-col="thermal">Thermal</button></div>
+        <div class="row" id="heatRow" hidden style="margin-top:8px"><label for="heatBy">Heat shows</label><select id="heatBy"><option value="activity">Recent activity</option><option value="age">Age</option><option value="needs">Needs you</option></select></div>
         <h4 class="cap">Show</h4>
         <div class="row"><span>Labels</span><button class="tg" id="tLabels" aria-pressed="true" aria-label="Labels"></button></div>
         <div class="row"><span>Links</span><button class="tg" id="tLinks" aria-pressed="true" aria-label="Links"></button></div>
@@ -380,9 +388,22 @@ const GROUPS = {
   status: {name:"Project status", meta:STATUS,  of:i => iStat[i]},
   year:   {name:"Year",           meta:YEARS,   of:i => Math.min(5, Math.floor(iTm[i]/12))}
 };
-const S = { form:"anatomy", by:"area", labels:true, links:true, scaf:true, turn:!reduced, size:1, glow:0.6, dust:1 };
-const F = { group:null, project:null, range:null };       // filters: {by,val} | project index | [m0,m1]
-const match = i => (!F.group || GROUPS[F.group.by].of(i) === F.group.val) && (F.project === null || iProj[i] === F.project) && (!F.range || (iTm[i] >= F.range[0] && iTm[i] < F.range[1]));
+const ACROSS = { year:GROUPS.year, moy:{name:"Month of year", meta:MON.map(m => [m, "#8d8c85"]), of:i => Math.floor(iTm[i]) % 12}, source:GROUPS.source, type:GROUPS.type, status:GROUPS.status, area:GROUPS.area };
+/* Thermal view: every item gets a temperature from 0 (cold) to 1 (hot). */
+const heat = new Float32Array(NI), BANDS = ["Hot","Warm","Cool","Cold"], band = h => h >= 0.72 ? 0 : h >= 0.45 ? 1 : h >= 0.2 ? 2 : 3;
+const HEATS = { activity:"Hot = its project is busy right now", age:"Hot = written recently", needs:"Hot = waiting on you" };
+const RAMP = ["#2a1c96","#6a1fa8","#b0257f","#e8452f","#ff8c1a","#ffd23a","#fff6c8"].map(hex);      // thermal-camera ramp, cold to hot
+const rampAt = h => { const x = clamp(h, 0, 1)*(RAMP.length-1), i = Math.min(RAMP.length-2, Math.floor(x)), f = x-i; return [0,1,2].map(k => RAMP[i][k]+(RAMP[i+1][k]-RAMP[i][k])*f); };
+const css = c => "rgb("+c.map(v => Math.round(clamp(v, 0, 1)*255)).join(",")+")";
+function computeHeat(){ const age = i => NOW_TM-iTm[i];
+  if(S.heat === "age") for(let i=0;i<NI;i++) heat[i] = Math.exp(-age(i)/14);
+  else if(S.heat === "needs"){ const base = [1, 0.62, 0.4, 0.07, 0.5]; for(let i=0;i<NI;i++) heat[i] = clamp(base[iStat[i]]*(0.72+0.28*Math.exp(-age(i)/10)), 0, 1); }
+  else { const ph = new Float32Array(NP+1); let mx = 0; for(let i=0;i<NI;i++) ph[iProj[i]+1] += Math.exp(-age(i)/1.5); const ord = [...ph.keys()].sort((a, b) => ph[a]-ph[b]), rank = new Float32Array(NP+1); ord.forEach((p, j) => rank[p] = j/NP); void mx;      // rank the projects so they spread over the whole ramp
+    for(let i=0;i<NI;i++) heat[i] = clamp(0.62*rank[iProj[i]+1]+0.38*Math.exp(-age(i)/9), 0, 1); } }
+const S = { form:"anatomy", by:"area", labels:true, links:true, scaf:true, turn:!reduced, size:1, glow:0.6, dust:1, gform:"spheres", tform:"grid", across:"year", thermal:false, heat:"activity" };
+const F = { group:null, project:null, range:null, heat:null };       // filters: {by,val} | project index | [m0,m1]
+const match = i => (!F.group || GROUPS[F.group.by].of(i) === F.group.val) && (F.project === null || iProj[i] === F.project) && (!F.range || (iTm[i] >= F.range[0] && iTm[i] < F.range[1])) && (F.heat === null || band(heat[i]) === F.heat);
+const anyF = () => !!(F.group || F.project !== null || F.range || F.heat !== null);
 
 /* ------------------------------------------------------------ 2. LAYOUTS */
 const isBrain = i => { const t = iType[i]; return t === 1 || t === 2 || t === 3 || t === 5; };   // what you concluded sits in the brain; the raw trail sits in the body
@@ -450,11 +471,12 @@ function buildNerves(){ const v = [], o = [0,0,0], p = [0,0,0], put = (q, a) => 
   nerveData = new Float32Array(v); nerveVerts = v.length/7; }
 buildWarp(); buildScaffold(); buildNerves();
 // fine dust: two faint grains around every item. Texture only; they follow their item and cannot be picked.
-const NS = scaf.length/4, ND = 2*NI, DB = NI+NS, N = NI+NS+ND, dOff = new Float32Array(ND*3);
+const NS = scaf.length/4, ND = 2*NI, DB = NI+NS, NH = 420, HB = DB+ND, N = HB+NH, dOff = new Float32Array(ND*3), hPar = new Int32Array(NH);
+for(let h=0;h<NH;h++) hPar[h] = Math.floor(R()*NI);      // haze: a few very large, very faint sprites riding on items, for volume
 for(let d=0;d<ND;d++){ const r = (0.35+Math.abs(gauss())*0.8)*(R() < 0.15 ? 2.2 : 1), z = R()*2-1, a = R()*TAU, q = Math.sqrt(1-z*z); dOff[d*3] = q*Math.cos(a)*r; dOff[d*3+1] = z*r; dOff[d*3+2] = q*Math.sin(a)*r; }
 const pFrom = new Float32Array(N*3), pTo = new Float32Array(N*3), pCol = new Float32Array(N*3), pMisc = new Float32Array(N*4);   // misc: lit, magnitude, phase, kind (0 item, 1 scaffold, 2 dust)
-for(let i=0;i<N;i++){ const kind = i < NI ? 0 : i < DB ? 1 : 2; pMisc[i*4] = 1; pMisc[i*4+2] = R(); pMisc[i*4+3] = kind; pCol[i*3] = pCol[i*3+1] = pCol[i*3+2] = 0.9;
-  pMisc[i*4+1] = kind === 0 ? (R() < 0.03 ? 1 : Math.pow(R(), 3)*0.8) : kind === 1 ? scaf[(i-NI)*4+3] : 0.1+0.3*R()*R(); }
+for(let i=0;i<N;i++){ const kind = i < NI ? 0 : i < DB ? 1 : i < HB ? 2 : 3; pMisc[i*4] = 1; pMisc[i*4+2] = R(); pMisc[i*4+3] = kind; pCol[i*3] = pCol[i*3+1] = pCol[i*3+2] = 0.9;
+  pMisc[i*4+1] = kind === 0 ? (R() < 0.03 ? 1 : Math.pow(R(), 3)*0.8) : kind === 1 ? scaf[(i-NI)*4+3] : kind === 2 ? 0.1+0.3*R()*R() : 0.4+0.6*R(); }
 let labels = [], extent = {w:40, h:70, cy:-6};
 const anatCache = new Float32Array(NI*3); let anatDirty = true;
 function layoutAnatomy(){
@@ -492,7 +514,7 @@ function layoutSpheres(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.le
   for(let i=0;i<NI;i++){ const k = g.of(i), z = R()*2-1, a = R()*TAU, s = Math.sqrt(1-z*z), r = rad[k]*(R() < 0.25 ? 0.92+0.1*R() : Math.cbrt(R())*0.95); pTo[i*3] = cx[k]+s*Math.cos(a)*r; pTo[i*3+1] = cy[k]+s*Math.sin(a)*r; pTo[i*3+2] = cz[k]+z*r; }
   labels = ord.slice(0, 30).map(k => ({t:g.meta[k][0], p:[cx[k], cy[k]+rad[k]+1.5, cz[k]], c:""})); extent = {w:mx+6, h:my+8, cy:0};
 }
-function layoutRings(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
+function layoutWheel(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
   const r0 = new Float32Array(n), w = new Float32Array(n); let sum = 0; for(const k of ord){ w[k] = Math.max(1.6, Math.sqrt(cnt[k])); sum += w[k]; } let acc = 9; for(const k of ord){ w[k] = w[k]/sum*52; r0[k] = acc; acc += w[k]; }
   const ang = tm => Math.PI/2-(0.03+0.94*tm/(NM+1))*TAU;                 // clockwise from the top, with a gap between Nov 2026 and Jan 2021
   for(let i=0;i<NI;i++){ const k = g.of(i), m = Math.floor(iTm[i]), a = ang(m+0.08+R()*0.84), r = r0[k]+w[k]*(0.06+0.86*R()); pTo[i*3] = Math.cos(a)*r; pTo[i*3+1] = Math.sin(a)*r; pTo[i*3+2] = gauss()*0.5; }
@@ -506,26 +528,93 @@ function layoutRibbon(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.len
   labels = []; for(let y=0;y<6;y++) labels.push({t:String(2021+y), p:[xOf(y*12+6), -H/2-4, 0], c:"yr"});
   if(ord.length <= 12) ord.forEach(k => labels.push({t:g.meta[k][0], p:[-W/2-2, y0[k]+h[k]/2, 0], c:"", right:true})); extent = {w:W/2+(ord.length <= 12 ? 26 : 6), h:H/2+8, cy:-1};
 }
+let flBuf = [];                                           // frame lines for the current form: boxes, grid rules, spokes
+const fl = (x1, y1, z1, x2, y2, z2, c, a) => flBuf.push(x1, y1, z1, c[0], c[1], c[2], a, x2, y2, z2, c[0], c[1], c[2], a);
+const NEUTRAL = [0.62, 0.72, 0.78], hr = n => (hash(n) & 0xffff)/65535;
+const lineCol = (g, k) => S.thermal ? NEUTRAL : emis(g.meta[k][1]);
+function layoutClusters(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
+  const rad = new Float32Array(n), cx = new Float32Array(n), cy = new Float32Array(n), cz = new Float32Array(n); let acc = 0;
+  ord.forEach((k, j) => { rad[k] = 2.7*Math.cbrt(cnt[k])+3; const r = 1.45*Math.sqrt(acc), a = j*2.39996; cx[k] = Math.cos(a)*r; cy[k] = Math.sin(a)*r*0.7; cz[k] = (hr(k*91+7)-0.5)*46; acc += rad[k]*rad[k]; });
+  for(let it=0;it<160;it++) for(let a=0;a<ord.length;a++) for(let b=a+1;b<ord.length;b++){ const i = ord[a], j = ord[b]; let dx = cx[j]-cx[i], dy = cy[j]-cy[i]; const d = Math.hypot(dx, dy) || 0.01, need = (rad[i]+rad[j])*0.98;
+    if(d < need){ const p = (need-d)/d*0.5; dx *= p; dy *= p; cx[i] -= dx; cy[i] -= dy; cx[j] += dx; cy[j] += dy; } }
+  const subOf = i => S.by === "project" ? Math.floor(iTm[i]/6) : iProj[i]+1, sub = new Map();      // each group is a clump of smaller clumps
+  for(let i=0;i<NI;i++){ const key = g.of(i)*4096+subOf(i); let q = sub.get(key); if(!q) sub.set(key, q = {n:0, k:g.of(i)}); q.n++; }
+  for(const [key, q] of sub){ const k = q.k, z = hr(key*7+1)*2-1, a = hr(key*7+2)*TAU, sq = Math.sqrt(1-z*z), d = rad[k]*(0.18+0.62*Math.sqrt(hr(key*7+3)));
+    q.x = cx[k]+sq*Math.cos(a)*d; q.y = cy[k]+sq*Math.sin(a)*d; q.z = cz[k]+z*d; q.r = 1.25*Math.cbrt(q.n)+0.7;
+    const z2 = hr(key*7+4)*2-1, a2 = hr(key*7+5)*TAU, s2 = Math.sqrt(1-z2*z2); q.ex = s2*Math.cos(a2); q.ey = s2*Math.sin(a2); q.ez = z2;
+    fl(cx[k], cy[k], cz[k], q.x, q.y, q.z, lineCol(g, k), 0.2); }
+  for(let i=0;i<NI;i++){ const q = sub.get(g.of(i)*4096+subOf(i)), far = R() < 0.1 ? 2.6 : 1, st = gauss()*q.r*0.95*far;
+    pTo[i*3] = q.x+gauss()*q.r*0.5*far+q.ex*st; pTo[i*3+1] = q.y+gauss()*q.r*0.5*far+q.ey*st; pTo[i*3+2] = q.z+gauss()*q.r*0.5*far+q.ez*st; }
+  let mx = 0, my = 0; for(const k of ord){ mx = Math.max(mx, Math.abs(cx[k])+rad[k]); my = Math.max(my, Math.abs(cy[k])+rad[k]); }
+  labels = ord.slice(0, 30).map(k => ({t:g.meta[k][0], p:[cx[k], cy[k]+rad[k]*0.85+2, cz[k]], c:""})); extent = {w:mx+6, h:my+8, cy:0};
+}
+function layoutShells(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[a]-cnt[b]);
+  const r0 = new Float32Array(n), gap = ord.length > 12 ? 3.1 : 5.4, wd = gap*0.5, CUT = 0.85; let r = 7; for(const k of ord){ r0[k] = r; r += gap; }      // smallest group in the middle
+  for(let i=0;i<NI;i++){ const k = g.of(i), lat = (iTm[i]/NOW_TM-0.5)*2.7+gauss()*0.03, az = CUT+R()*(TAU-2*CUT), q = r0[k]+R()*wd, cl = Math.cos(lat);
+    pTo[i*3] = cl*Math.sin(az)*q; pTo[i*3+1] = Math.sin(lat)*q; pTo[i*3+2] = cl*Math.cos(az)*q; }
+  labels = [{t:"2026", p:[0, r+3, 0], c:"yr"}, {t:"2021", p:[0, -r-3, 0], c:"yr"}];
+  if(ord.length <= 12) ord.forEach((k, j) => { const lat = -0.95+1.9*j/Math.max(1, ord.length-1), q = r0[k]+wd/2; labels.push({t:g.meta[k][0], p:[Math.cos(lat)*Math.sin(CUT)*q, Math.sin(lat)*q, Math.cos(lat)*Math.cos(CUT)*q], c:"", left:true}); });
+  extent = {w:r+6, h:r+7, cy:0};
+}
+function squarify(items, x, y, w, h){ const total = items.reduce((q, a) => q+a.v, 0), scale = w*h/total; let i = 0;
+  while(i < items.length){ const side = Math.min(w, h); let row = [], sum = 0, best = Infinity, j = i, lo = Infinity, hi = 0;
+    while(j < items.length){ const a = items[j].v*scale, s2 = sum+a, nhi = Math.max(hi, a), nlo = Math.min(lo, a), worst = Math.max(side*side*nhi/(s2*s2), s2*s2/(side*side*nlo)); if(worst > best) break; best = worst; hi = nhi; lo = nlo; row.push(items[j]); sum = s2; j++; }
+    const thick = sum/side; let off = 0; for(const it of row){ const len = it.v*scale/thick; if(w >= h){ it.x = x; it.y = y+off; it.w = thick; it.h = len; } else { it.x = x+off; it.y = y; it.w = len; it.h = thick; } off += len; }
+    if(w >= h){ x += thick; w -= thick; } else { y += thick; h -= thick; } i = j; } }
+function layoutFolders(){ const top = S.by === "project" ? GROUPS.area : GROUPS[S.by], cells = new Map();            // boxes inside boxes: group, then project
+  for(let i=0;i<NI;i++){ const a = top.of(i), key = a*64+iProj[i]+1; let c = cells.get(key); if(!c) cells.set(key, c = {v:0, a, p:iProj[i]}); c.v++; }
+  const groups = new Map(); for(const c of cells.values()){ let q = groups.get(c.a); if(!q) groups.set(c.a, q = {v:0, a:c.a, kids:[]}); q.v += c.v; q.kids.push(c); }
+  const gl2 = [...groups.values()].sort((a, b) => b.v-a.v), W = 156, H = 92; squarify(gl2, -W/2, -H/2, W, H); labels = []; for(const q of gl2) q.h = Math.max(1, q.h-3.6);
+  const box = (b, c, a) => { fl(b.x, b.y, 0, b.x+b.w, b.y, 0, c, a); fl(b.x+b.w, b.y, 0, b.x+b.w, b.y+b.h, 0, c, a); fl(b.x+b.w, b.y+b.h, 0, b.x, b.y+b.h, 0, c, a); fl(b.x, b.y+b.h, 0, b.x, b.y, 0, c, a); };
+  for(const q of gl2){ const c = S.thermal ? NEUTRAL : emis(top.meta[q.a][1]); q.kids.sort((a, b) => b.v-a.v); squarify(q.kids, q.x+0.9, q.y+0.9, Math.max(0.5, q.w-1.8), Math.max(0.5, q.h-1.8)); box(q, c, 0.55);
+    labels.push({t:top.meta[q.a][0], p:[q.x+0.5, q.y+q.h+1.9, 0], c:"", left:true});
+    for(const k of q.kids){ if(q.kids.length > 1) box(k, c, 0.22); if(q.kids.length > 1 && k.p >= 0 && k.w > PROJ[k.p].name.length*1.45+4 && k.h > 6 && labels.length < 44) labels.push({t:PROJ[k.p].name, p:[k.x+1.2, k.y+k.h-2.4, 0], c:"yr", left:true}); } }
+  for(let i=0;i<NI;i++){ const k = cells.get(top.of(i)*64+iProj[i]+1), px = 0.9, py = 0.9; pTo[i*3] = k.x+px+R()*Math.max(0.1, k.w-2*px); pTo[i*3+1] = k.y+py+R()*Math.max(0.1, k.h-2*py); pTo[i*3+2] = gauss()*0.3; }
+  extent = {w:W/2+5, h:H/2+7, cy:1};
+}
+function layoutGrid(){ const g = GROUPS[S.by], ac = ACROSS[S.across], cnt = groupStats(), rows = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") rows.sort((a, b) => cnt[b]-cnt[a]);
+  const cc = new Int32Array(ac.meta.length); for(let i=0;i<NI;i++) cc[ac.of(i)]++; const cols = [...Array(cc.length).keys()].filter(k => cc[k]);
+  const nr = rows.length, nc = cols.length, ri = new Int32Array(cnt.length), ci = new Int32Array(cc.length); rows.forEach((k, j) => ri[k] = j); cols.forEach((k, j) => ci[k] = j);
+  const cell = new Int32Array(nr*nc); let mx = 1; for(let i=0;i<NI;i++){ const q = ri[g.of(i)]*nc+ci[ac.of(i)]; if(++cell[q] > mx) mx = cell[q]; }
+  const cw = Math.min(22, 150/nc), ch = Math.min(cw, 92/nr), W = cw*nc, H = ch*nr, x0 = -W/2, y0 = H/2;
+  for(let i=0;i<NI;i++){ const r = ri[g.of(i)], c = ci[ac.of(i)], q = 0.2+0.8*Math.sqrt(cell[r*nc+c]/mx);            // a block's area follows its count
+    pTo[i*3] = x0+(c+0.5)*cw+(R()-0.5)*cw*0.88*q; pTo[i*3+1] = y0-(r+0.5)*ch+(R()-0.5)*ch*0.88*q; pTo[i*3+2] = gauss()*0.25; }
+  for(let r=0;r<=nr;r++) fl(x0, y0-r*ch, 0, x0+W, y0-r*ch, 0, NEUTRAL, 0.16); for(let c=0;c<=nc;c++) fl(x0+c*cw, y0, 0, x0+c*cw, y0-H, 0, NEUTRAL, 0.16);
+  labels = cols.map((k, j) => ({t:ac.meta[k][0], p:[x0+(j+0.5)*cw, y0+3, 0], c:"yr"}));
+  if(nr <= 30) rows.forEach((k, j) => labels.push({t:g.meta[k][0], p:[x0-2, y0-(j+0.5)*ch, 0], c:nr > 12 ? "yr" : "", right:true}));
+  extent = {w:W/2+(nr <= 30 ? 30 : 5), h:H/2+8, cy:1};
+}
 const NOTES = {
   anatomy:"Brain: what you concluded (decisions, ideas, questions, notes), one region per area. Body: the raw trail of chats, tasks and files, newest at the top of the spine.",
   spheres:"One ball per group, sized by how much is in it.",
-  rings:"A clock of your record. Time runs clockwise from January 2021; each group is its own ring.",
+  clusters:"Each group is a loose clump made of smaller clumps, one per project, tied to its centre.",
+  shells:"Nested shells with a slice cut out, smallest group in the middle. On every shell, old is at the bottom and new at the top.",
+  wheel:"A clock of your record. Time runs clockwise from January 2021; each group is its own ring.",
+  folders:"Boxes inside boxes: each group, then the projects inside it. Area means amount.",
+  grid:"A table. Rows are groups; pick what runs across. Bigger blocks hold more.",
   ribbon:"A timeline. Time runs left to right; each group is its own row."
 };
+const FORMS = { groups:[["spheres","Spheres"],["clusters","Clusters"],["shells","Shells"],["wheel","Wheel"],["folders","Folders"]], table:[["grid","Grid"],["ribbon","Ribbon"]] };
+const modeOf = f => f === "anatomy" ? "anatomy" : FORMS.table.some(x => x[0] === f) ? "table" : "groups";
 let T = 1;                                                // transition progress
 const wOf = i => { const w = clamp(T*1.5-pMisc[i*4+2]*0.5, 0, 1); return w*w*(3-2*w); };
 const emis = h => { const c = hex(h), l = 0.3*c[0]+0.59*c[1]+0.11*c[2], o = c.map(v => clamp(l+(v-l)*1.5, 0, 1)), m = Math.max(...o), sat = (m-Math.min(...o))/m; return o.map(v => v/m*(0.5+0.5*Math.min(1, sat*1.6))); };   // glowing version of a swatch colour
 function colourize(){ const g = GROUPS[S.by], cols = g.meta.map(m => emis(m[1]));
-  for(let i=0;i<NI;i++){ const c = cols[g.of(i)]; pCol[i*3] = c[0]; pCol[i*3+1] = c[1]; pCol[i*3+2] = c[2]; }
-  for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pCol[k] = pCol[p]; pCol[k+1] = pCol[p+1]; pCol[k+2] = pCol[p+2]; } }
-function relit(){ const any = F.group || F.project !== null || F.range; let n = 0;
+  if(S.thermal){ computeHeat(); for(let i=0;i<NI;i++){ const h = heat[i], c0 = rampAt(h), m = Math.max(c0[0], c0[1], c0[2]), c = c0.map(v => v/m), b = 0.5+0.85*h*h; pCol[i*3] = c[0]*b; pCol[i*3+1] = c[1]*b; pCol[i*3+2] = c[2]*b; } }   // hot items are brighter as well as yellower
+  else for(let i=0;i<NI;i++){ const c = cols[g.of(i)]; pCol[i*3] = c[0]; pCol[i*3+1] = c[1]; pCol[i*3+2] = c[2]; }
+  for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pCol[k] = pCol[p]; pCol[k+1] = pCol[p+1]; pCol[k+2] = pCol[p+2]; }
+  for(let h=0;h<NH;h++){ const p = hPar[h]*3, k = (HB+h)*3, b = S.thermal ? 0.1+1.3*heat[hPar[h]]**3 : 1; pCol[k] = pCol[p]*b; pCol[k+1] = pCol[p+1]*b; pCol[k+2] = pCol[p+2]*b; } }
+function recolour(){ colourize(); fillWeb(); if(gl){ gl.bindBuffer(gl.ARRAY_BUFFER, bCol); gl.bufferData(gl.ARRAY_BUFFER, pCol, gl.DYNAMIC_DRAW); } renderLegend(); }
+function relit(){ const any = anyF(); let n = 0;
   for(let i=0;i<NI;i++){ const m = !any || match(i); pMisc[i*4] = m ? 1 : 0.085; if(m) n++; }
-  for(let i=NI;i<DB;i++) pMisc[i*4] = any ? 0.35 : 1; for(let d=0;d<ND;d++) pMisc[(DB+d)*4] = pMisc[(d % NI)*4]; fillWeb(); return n; }
+  for(let i=NI;i<DB;i++) pMisc[i*4] = any ? 0.35 : 1; for(let d=0;d<ND;d++) pMisc[(DB+d)*4] = pMisc[(d % NI)*4]; for(let h=0;h<NH;h++) pMisc[(HB+h)*4] = pMisc[hPar[h]*4]; fillWeb(); return n; }
 function applyLayout(animate){
   for(let i=0;i<N;i++){ const w = wOf(i), k = i*3; pFrom[k] += (pTo[k]-pFrom[k])*w; pFrom[k+1] += (pTo[k+1]-pFrom[k+1])*w; pFrom[k+2] += (pTo[k+2]-pFrom[k+2])*w; }
-  ({anatomy:layoutAnatomy, spheres:layoutSpheres, rings:layoutRings, ribbon:layoutRibbon})[S.form]();
+  flBuf = []; frameA = 0; ({anatomy:layoutAnatomy, spheres:layoutSpheres, clusters:layoutClusters, shells:layoutShells, wheel:layoutWheel, folders:layoutFolders, grid:layoutGrid, ribbon:layoutRibbon})[S.form]();
+  frameVerts = flBuf.length/7; if(gl && bFrame){ gl.bindBuffer(gl.ARRAY_BUFFER, bFrame); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flBuf.length ? flBuf : 7), gl.DYNAMIC_DRAW); }
   for(let i=0;i<NS;i++){ const k = (NI+i)*3; pTo[k] = scaf[i*4]; pTo[k+1] = scaf[i*4+1]; pTo[k+2] = scaf[i*4+2]; }
-  const ds = S.form === "anatomy" ? 0.8 : 1.15; for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pTo[k] = pTo[p]+dOff[d*3]*ds; pTo[k+1] = pTo[p+1]+dOff[d*3+1]*ds; pTo[k+2] = pTo[p+2]+dOff[d*3+2]*ds; }
+  const ds = S.form === "anatomy" ? 0.8 : 1.15; for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pTo[k] = pTo[p]+dOff[d*3]*ds; pTo[k+1] = pTo[p+1]+dOff[d*3+1]*ds; pTo[k+2] = pTo[p+2]+dOff[d*3+2]*(flat() ? 0.3 : ds); }
+  for(let h=0;h<NH;h++){ const p = hPar[h]*3, k = (HB+h)*3; pTo[k] = pTo[p]; pTo[k+1] = pTo[p+1]; pTo[k+2] = pTo[p+2]; }
   colourize(); fillWeb(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false);
   $("#formNote").textContent = NOTES[S.form]; $("#bHint").textContent = "Hover a speck to read it · click to open · drag to turn · scroll zooms to the cursor · double-click to dive in";
 }
@@ -536,6 +625,7 @@ const HDR = gl ? !!gl.getExtension("EXT_color_buffer_float") : false;
 function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
 function prog(vs, fs, attrs){ const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); (attrs || []).forEach((a, i) => gl.bindAttribLocation(p, i, a)); gl.linkProgram(p);
   if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for(let i=0;i<n;i++){ const x = gl.getActiveUniform(p, i); u[x.name] = gl.getUniformLocation(p, x.name); } return {p, u}; }
+let frameVerts = 0, frameA = 0, thermA = 0, bFrame = null, vaoFr = null;
 let pP, pL, pD, pU, pC, vaoP, vaoL, vaoF, vaoN, vaoW, bFrom, bTo, bCol, bMisc, bLine, bNerve, bWeb = null;
 const MAXV = 8*16*2, lineData = new Float32Array(MAXV*7); let lineVerts = 0;
 function initGL(){
@@ -551,8 +641,8 @@ float signal(vec3 P){                                // pulses run down the nerv
   pP = prog(`#version 300 es
 precision highp float;
 in vec3 aFrom; in vec3 aTo; in vec3 aCol; in vec4 aMisc;
-uniform mat4 uVP; uniform float uT, uPx, uSize, uK, uGain, uScaf, uDist, uDust;
-out vec3 vCol; out float vHot;
+uniform mat4 uVP; uniform float uT, uPx, uSize, uK, uGain, uScaf, uDist, uDust, uHaze;
+out vec3 vCol; out float vHot; out float vHz;
 `+LIVE+`void main(){
   float ph=aMisc.z, w=clamp(uT*1.5-ph*0.5,0.0,1.0); w=w*w*(3.0-2.0*w);
   vec3 d=aTo-aFrom, P=mix(aFrom,aTo,w);
@@ -560,20 +650,22 @@ out vec3 vCol; out float vHot;
   P+=0.05*vec3(sin(uTime*0.7+ph*40.0),sin(uTime*0.6+ph*70.0),sin(uTime*0.5+ph*90.0));
   P=live(P);
   vec4 clip=uVP*vec4(P,1.0); gl_Position=clip;
-  float depth=max(clip.w,0.01), mag=aMisc.y, scaf=step(0.5,aMisc.w)*step(aMisc.w,1.5), dust=step(1.5,aMisc.w);
+  float depth=max(clip.w,0.01), mag=aMisc.y, scaf=step(0.5,aMisc.w)*step(aMisc.w,1.5), haze=step(2.5,aMisc.w), dust=step(1.5,aMisc.w)*(1.0-haze);
   float size=uSize*(1.0+1.7*mag)*mix(1.0,0.62,max(scaf,dust))*pow((uPx/depth)/uK,0.42);
-  gl_PointSize=clamp(size,2.5,72.0);
+  size=mix(size,uSize*15.0*(0.6+mag)*pow((uPx/depth)/uK,0.85),haze);
+  gl_PointSize=clamp(size,2.5,mix(72.0,220.0,haze));
   float tw=1.0+0.2*sin(uTime*(1.0+2.5*fract(ph*7.31))+ph*6.2831);
   float glint=step(0.985,mag)*pow(max(0.0,sin(uTime*(0.5+fract(ph*3.7))+ph*40.0)),8.0);
   float inten=mix(0.55+3.2*mag*mag,mag*0.6,scaf)*mix(1.0,0.42*uDust,dust)*aMisc.x*mix(1.0,uScaf,scaf)*tw*(1.0+1.6*glint)*uGain*clamp(1.3-0.4*depth/uDist,0.6,1.2);
   inten*=1.0+uAnat*uWave*1.3*signal(P)*(1.0-0.6*dust);
-  vCol=aCol*inten; vHot=inten*(0.06+0.9*smoothstep(0.5,1.0,mag))*(1.0-dust);
+  inten=mix(inten,0.05*uHaze*aMisc.x*uGain,haze);
+  vCol=aCol*inten; vHot=inten*(0.06+0.9*smoothstep(0.5,1.0,mag))*(1.0-dust)*(1.0-haze); vHz=haze;
 }`, `#version 300 es
-precision mediump float; in vec3 vCol; in float vHot; out vec4 o;
+precision mediump float; in vec3 vCol; in float vHot; in float vHz; out vec4 o;
 void main(){ vec2 p=gl_PointCoord*2.0-1.0; float d2=dot(p,p); if(d2>1.0) discard;
   float q=d2/0.0576, core=1.0/(1.0+q*q*q);          // a crisp bead: flat top, steep edge. It stays sharp at any size.
   float halo=exp(-d2*5.0)*(1.0-d2)*0.11;
-  o=vec4(vCol*(core*1.35+halo)+vec3(vHot)*core,1.0); }`, ["aFrom","aTo","aCol","aMisc"]);
+  o=vec4(mix(vCol*(core*1.35+halo)+vec3(vHot)*core,vCol*exp(-d2*3.2)*(1.0-d2),vHz),1.0); }`, ["aFrom","aTo","aCol","aMisc"]);
   pL = prog(`#version 300 es
 precision highp float;
 in vec3 aP; in vec4 aC; uniform mat4 uVP; uniform float uA; out vec4 vC;
@@ -601,7 +693,7 @@ void main(){ vec3 s=texture(uScene,vUv).rgb, b=texture(uBloom,vUv).rgb;
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
   const lineVao = (b, data, usage) => { const v = gl.createVertexArray(); gl.bindVertexArray(v); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, usage);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12); return v; };
-  vaoN = lineVao(bNerve, nerveData, gl.STATIC_DRAW); vaoW = lineVao(bWeb, new Float32Array(7), gl.DYNAMIC_DRAW);
+  vaoN = lineVao(bNerve, nerveData, gl.STATIC_DRAW); vaoW = lineVao(bWeb, new Float32Array(7), gl.DYNAMIC_DRAW); bFrame = buf(); vaoFr = lineVao(bFrame, new Float32Array(7), gl.DYNAMIC_DRAW);
   vaoF = gl.createVertexArray(); gl.bindVertexArray(null);
 }
 function uploadAll(){ if(!gl) return; for(const [b, d] of [[bFrom,pFrom],[bTo,pTo],[bCol,pCol],[bMisc,pMisc]]){ gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); } }
@@ -620,18 +712,18 @@ function resize(){ const w0 = canvas.clientWidth, h0 = canvas.clientHeight; if(!
 let view = "";
 const FOV = 42*Math.PI/180, proj = new Float32Array(16), viewM = new Float32Array(16), VP = new Float32Array(16);
 const cam = {yaw:0.35, pitch:0.06, dist:260, tg:[0,4,0], gYaw:0.35, gPitch:0.06, gDist:260, gTg:[0,4,0], home:260};
-const flat = () => S.form === "rings" || S.form === "ribbon";
-const panelW = () => (view === "brain" && cssW > 820) ? 280 : 0;      // keep the figure clear of the View panel
+const flat = () => S.form === "wheel" || S.form === "ribbon" || S.form === "grid" || S.form === "folders";
+const panelW = () => (view === "brain" && cssW > 820) ? 290 : 0, legW = () => (view === "brain" && cssW > 820 && flat()) ? 250 : 0;      // keep the figure clear of the View panel
 const insetB = () => (view === "brain" && cssW <= 820) ? 140 : 0, insetT = () => (view === "brain" && cssW <= 820) ? 48 : 0;   // phone: legend below, chips above
-function homeCam(keepAngle){ const H = cssH || 800, effH = H-insetB()-insetT(), asp = Math.max(0.3, ((cssW || 1200)-panelW())/effH), d = Math.max(extent.h, extent.w/asp)/Math.tan(FOV/2)*1.16*(H/effH);
-  cam.gDist = d; cam.home = d; cam.gTg = [0, extent.cy, 0]; if(!keepAngle){ cam.gPitch = flat() ? 0 : S.form === "anatomy" ? 0.06 : 0.16; if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU; } }
+function homeCam(keepAngle){ const H = cssH || 800, effH = H-insetB()-insetT(), asp = Math.max(0.3, ((cssW || 1200)-panelW()-legW())/effH), d = Math.max(extent.h, extent.w/asp)/Math.tan(FOV/2)*1.16*(H/effH);
+  cam.gDist = d; cam.home = d; cam.gTg = [0, extent.cy, 0]; if(!keepAngle){ cam.gPitch = flat() ? 0 : S.form === "anatomy" ? 0.06 : 0.16; if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU; else if(S.form === "shells") cam.gYaw = Math.round(cam.gYaw/TAU)*TAU+0.3; } }
 let down = false, clock = 0;
 function updateCam(dt){ const k = 1-Math.exp(-dt*6), ks = 1-Math.exp(-dt*3.4);
   if(!down && S.turn && !reduced && cam.gDist > cam.home*0.6){ if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU+Math.sin(clock*0.25)*0.16; else cam.gYaw += dt*0.07; }
   cam.gPitch = clamp(cam.gPitch, -1.4, 1.4); cam.gDist = clamp(cam.gDist, 5, 900);
   cam.yaw += (cam.gYaw-cam.yaw)*k; cam.pitch += (cam.gPitch-cam.pitch)*k; cam.dist += (cam.gDist-cam.dist)*ks; for(let i=0;i<3;i++) cam.tg[i] += (cam.gTg[i]-cam.tg[i])*ks;
   const cp = Math.cos(cam.pitch), e = [cam.tg[0]+cam.dist*cp*Math.sin(cam.yaw), cam.tg[1]+cam.dist*Math.sin(cam.pitch), cam.tg[2]+cam.dist*cp*Math.cos(cam.yaw)];
-  const t = 1/Math.tan(FOV/2), n = Math.max(0.5, cam.dist*0.02), f = 4000; proj.fill(0); proj[0] = t/(cssW/cssH); proj[5] = t; proj[8] = panelW()/cssW; proj[9] = -(insetB()-insetT())/cssH; proj[10] = (f+n)/(n-f); proj[11] = -1; proj[14] = 2*f*n/(n-f);
+  const t = 1/Math.tan(FOV/2), n = Math.max(0.5, cam.dist*0.02), f = 4000; proj.fill(0); proj[0] = t/(cssW/cssH); proj[5] = t; proj[8] = (panelW()-legW())/cssW; proj[9] = -(insetB()-insetT())/cssH; proj[10] = (f+n)/(n-f); proj[11] = -1; proj[14] = 2*f*n/(n-f);
   let zx = e[0]-cam.tg[0], zy = e[1]-cam.tg[1], zz = e[2]-cam.tg[2], l = 1/Math.hypot(zx, zy, zz); zx *= l; zy *= l; zz *= l; let xx = zz, xz = -zx; l = 1/(Math.hypot(xx, xz) || 1); xx *= l; xz *= l; const yx = zy*xz, yy = zz*xx-zx*xz, yz = -zy*xx;
   viewM.set([xx,yx,zx,0, 0,yy,zy,0, xz,yz,zz,0, -(xx*e[0]+xz*e[2]), -(yx*e[0]+yy*e[1]+yz*e[2]), -(zx*e[0]+zy*e[1]+zz*e[2]), 1]);
   for(let c=0;c<4;c++) for(let r=0;r<4;r++) VP[c*4+r] = proj[r]*viewM[c*4]+proj[4+r]*viewM[c*4+1]+proj[8+r]*viewM[c*4+2]+proj[12+r]*viewM[c*4+3]; }
@@ -675,12 +767,12 @@ function buildLines(){ lineVerts = 0; const src = hovered >= 0 ? hovered : selec
 let labelEls = [];
 function buildLabels(){ const root = $("#labels"); root.innerHTML = ""; labelEls = labels.map(l => { const d = document.createElement("div"); d.className = "lb "+l.c; d.textContent = l.t; root.append(d); return d; }); }
 function placeLabels(){ const show = S.labels && T >= 1; for(let i=0;i<labels.length;i++){ const l = labels[i], e = labelEls[i]; project(l.p[0], l.p[1], l.p[2], tp);
-    if(!show || tp[2] < 0){ e.style.opacity = 0; continue; } e.style.opacity = 1; e.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px) translate(${l.right ? "-100%" : "-50%"},-50%)`; }
+    if(!show || tp[2] < 0){ e.style.opacity = 0; continue; } e.style.opacity = 1; e.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px) translate(${l.right ? "-100%" : l.left ? "0" : "-50%"},-50%)`; }
   const ring = $("#ring"); if(selected >= 0 && T >= 1){ const k = selected*3; livePos(pTo[k], pTo[k+1], pTo[k+2], lv); project(lv[0], lv[1], lv[2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; } else ring.hidden = true; }
 let tPrev = performance.now(), scafA = 1, lineA = 0, webA = 0;
 const BLOOM_W = [0, 0.75, 0.5, 0.42];                     // tight bloom: each wider level adds less, so glow stays a halo and never a fog
 function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now-tPrev)/1000); tPrev = now; clock += dt; if(!gl || !resize()) return;
-  const anat = S.form === "anatomy", ease = 1-Math.exp(-dt*4), any = F.group || F.project !== null || F.range;
+  const anat = S.form === "anatomy", ease = 1-Math.exp(-dt*4), any = anyF();
   if(T < 1) T = Math.min(1, T+dt/1.5); scafA += ((anat && S.scaf ? 1 : 0)-scafA)*ease; anatA += ((anat ? 1 : 0)-anatA)*ease;
   lineA += ((anat && S.scaf && T >= 1 ? 1 : 0)-lineA)*ease; webA += ((anat && S.links && T >= 1 ? 1 : 0)-webA)*ease;
   updateCam(dt); if(needPick) doPick(); buildLines(); placeLabels();
@@ -689,9 +781,11 @@ function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now
   gl.useProgram(pL.p); gl.uniformMatrix4fv(pL.u.uVP, false, VP); gl.uniform1f(pL.u.uTime, time); gl.uniform1f(pL.u.uAnat, anatA); gl.uniform1f(pL.u.uWave, wave);
   if(lineA > 0.01){ gl.uniform1f(pL.u.uA, lineA*0.07*(any ? 0.45 : 1)); gl.bindVertexArray(vaoN); gl.drawArrays(gl.LINES, 0, nerveVerts); }
   if(webA > 0.01 && webPairs.length){ gl.uniform1f(pL.u.uA, webA); gl.bindVertexArray(vaoW); gl.drawArrays(gl.LINES, 0, webPairs.length); }
+  frameA += ((T >= 1 ? 1 : 0)-frameA)*ease; thermA += ((S.thermal ? 1 : 0)-thermA)*ease;
+  if(frameVerts && frameA > 0.01){ gl.uniform1f(pL.u.uA, frameA*(any ? 0.5 : 1)); gl.bindVertexArray(vaoFr); gl.drawArrays(gl.LINES, 0, frameVerts); }
   if(lineVerts){ gl.uniform1f(pL.u.uA, 1); gl.uniform1f(pL.u.uWave, 0); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferSubData(gl.ARRAY_BUFFER, 0, lineData.subarray(0, lineVerts*7)); gl.drawArrays(gl.LINES, 0, lineVerts); }
   gl.useProgram(pP.p); const U = pP.u; gl.uniformMatrix4fv(U.uVP, false, VP); gl.uniform1f(U.uT, T); gl.uniform1f(U.uTime, time); gl.uniform1f(U.uAnat, anatA); gl.uniform1f(U.uWave, wave); gl.uniform1f(U.uPx, scene.h/(2*Math.tan(FOV/2)));
-  gl.uniform1f(U.uSize, 4.3*S.size*pxr); gl.uniform1f(U.uK, 6*pxr); gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust);
+  gl.uniform1f(U.uSize, 4.3*S.size*pxr); gl.uniform1f(U.uK, 6*pxr); gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust); gl.uniform1f(U.uHaze, 0.35+0.75*thermA);
   gl.bindVertexArray(vaoP); gl.drawArrays(gl.POINTS, 0, N);
   gl.bindVertexArray(vaoF); gl.disable(gl.BLEND); gl.useProgram(pD.p); gl.uniform1i(pD.u.uTex, 0); let src = scene;
   for(const m of mips){ gl.bindFramebuffer(gl.FRAMEBUFFER, m.fbo); gl.viewport(0, 0, m.w, m.h); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pD.u.uTexel, 1/src.w, 1/src.h); gl.uniform1f(pD.u.uThr, src === scene ? 0.22 : 0); gl.drawArrays(gl.TRIANGLES, 0, 3); src = m; }
@@ -699,14 +793,18 @@ function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now
   for(let i=mips.length-1;i>0;i--){ const d = mips[i-1], s = mips[i]; gl.bindFramebuffer(gl.FRAMEBUFFER, d.fbo); gl.viewport(0, 0, d.w, d.h); gl.bindTexture(gl.TEXTURE_2D, s.tex); gl.uniform2f(pU.u.uTexel, 1/s.w, 1/s.h); gl.uniform1f(pU.u.uW, BLOOM_W[i]); gl.drawArrays(gl.TRIANGLES, 0, 3); }
   gl.disable(gl.BLEND); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height); gl.useProgram(pC.p);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, scene.tex); gl.uniform1i(pC.u.uScene, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, mips[0].tex); gl.uniform1i(pC.u.uBloom, 1);
-  gl.uniform1f(pC.u.uGlow, S.glow*0.85); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.activeTexture(gl.TEXTURE0);
+  gl.uniform1f(pC.u.uGlow, S.glow*0.85*(1+0.25*thermA)); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.activeTexture(gl.TEXTURE0);
 }
-function filtersChanged(){ const n = relit(); uploadMisc(); $("#bCount").textContent = (F.group || F.project !== null || F.range) ? fmt(n)+" of "+fmt(NI)+" items lit" : fmt(NI)+" items";
-  const chips = []; if(F.group) chips.push(["group", GROUPS[F.group.by].name+": "+GROUPS[F.group.by].meta[F.group.val][0]]); if(F.project !== null) chips.push(["project", "Project: "+PROJ[F.project].name]); if(F.range) chips.push(["range", rangeText()]);
+function filtersChanged(){ const n = relit(); uploadMisc(); $("#bCount").textContent = (anyF()) ? fmt(n)+" of "+fmt(NI)+" items lit" : fmt(NI)+" items";
+  const chips = []; if(F.heat !== null) chips.push(["heat", "Heat: "+BANDS[F.heat]]); if(F.group) chips.push(["group", GROUPS[F.group.by].name+": "+GROUPS[F.group.by].meta[F.group.val][0]]); if(F.project !== null) chips.push(["project", "Project: "+PROJ[F.project].name]); if(F.range) chips.push(["range", rangeText()]);
   $("#bChips").innerHTML = chips.map(c => `<span class="chip">${esc(c[1])}<button data-clear="${c[0]}" aria-label="Remove filter">×</button></span>`).join(" "); renderLegend(); if(view === "timeline") renderTimeline(); return n; }
 const qName = q => "Q"+(q % 4+1)+" "+(2021+Math.floor(q/4));
 const rangeText = () => { const a = Math.round(F.range[0]/3), b = Math.round(F.range[1]/3)-1; return a === b ? qName(a) : qName(a)+" – "+qName(b); };
-function renderLegend(){ const g = GROUPS[S.by], cnt = groupStats(), ord = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") ord.sort((a, b) => cnt[b]-cnt[a]);
+function renderLegend(){
+  if(S.thermal){ const cnt = [0,0,0,0]; for(let i=0;i<NI;i++) cnt[band(heat[i])]++; const mid = [0.86, 0.58, 0.32, 0.08];
+    $("#legend").innerHTML = `<div class="cap"><span>Heat</span><span>${fmt(NI)}</span></div><div id="heatBar" style="background:linear-gradient(90deg,${RAMP.map(css).join(",")})"></div><div class="heatEnds"><span>cold</span><span>hot</span></div><p class="heatNote">${HEATS[S.heat]}</p>`+
+      BANDS.map((b, k) => `<button data-heat="${k}" class="${F.heat === k ? "on" : ""}"><i class="dot" style="background:${css(rampAt(mid[k]))}"></i><span>${b}</span><span class="num">${fmt(cnt[k])}</span></button>`).join(""); return; }
+  const g = GROUPS[S.by], cnt = groupStats(), ord = [...Array(cnt.length).keys()].filter(k => cnt[k]); if(S.by !== "year" && S.by !== "status") ord.sort((a, b) => cnt[b]-cnt[a]);
   $("#legend").innerHTML = `<div class="cap"><span>${esc(g.name)}</span><span>${fmt(NI)}</span></div>`+ord.map(k => `<button data-val="${k}" class="${F.group && F.group.by === S.by && F.group.val === k ? "on" : ""}"><i class="dot" style="background:${g.meta[k][1]}"></i><span>${esc(g.meta[k][0])}</span><span class="num">${fmt(cnt[k])}</span></button>`).join(""); }
 
 /* ------------------------------------------------------------ 5. PAGES */
@@ -788,15 +886,22 @@ function palSearch(){ const q = $("#palIn").value.trim().toLowerCase(); palHits 
 function palOpen(o){ $("#pal").hidden = !o; if(o){ $("#palIn").value = ""; palSearch(); $("#palIn").focus(); } }
 function go(v){ if(!["now","brain","timeline","projects","inbox","sources"].includes(v)) v = "now"; view = v; document.body.className = "at-"+v; $$(".view").forEach(e => e.classList.toggle("on", e.id === "v-"+v)); $$("#nav .nv").forEach(b => b.classList.toggle("on", b.dataset.view === v));
   ({now:renderNow, projects:renderProjects, inbox:renderInbox, sources:renderSources, timeline:renderTimeline, brain:() => {}})[v](); hideTip(); cssW = 0; if(location.hash.slice(1) !== v){ try{ history.replaceState(null, "", "#"+v); }catch(e){} } }
-function setForm(f){ S.form = f; $$("#formSeg button").forEach(b => b.classList.toggle("on", b.dataset.form === f)); applyLayout(true); }
-document.addEventListener("click", e => { const t = e.target.closest("[data-view],[data-proj],[data-open],[data-go],[data-form],[data-val],[data-clear],[data-year],[data-table],[data-file],[data-toast],[data-show-proj],[data-show-item],[data-tl-proj],.x,.tg"); if(!t) { if(e.target.id === "pal") palOpen(false); return; }
+function syncForm(){ const m = modeOf(S.form); $$("#modeSeg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
+  const fs = $("#formSeg"); fs.hidden = m === "anatomy"; fs.innerHTML = (FORMS[m] || []).map(f => `<button data-form="${f[0]}" class="${f[0] === S.form ? "on" : ""}">${f[1]}</button>`).join("");
+  $("#acrossRow").hidden = S.form !== "grid"; $$("#colSeg button").forEach(b => b.classList.toggle("on", (b.dataset.col === "thermal") === S.thermal)); $("#heatRow").hidden = !S.thermal; }
+function setForm(f){ S.form = f; const m = modeOf(f); if(m === "groups") S.gform = f; else if(m === "table") S.tform = f; syncForm(); applyLayout(true); }
+function setThermal(on){ S.thermal = on; if(!on && F.heat !== null){ F.heat = null; } syncForm(); if(flBuf.length) applyLayout(false); else recolour(); filtersChanged(); }
+document.addEventListener("click", e => { const t = e.target.closest("[data-view],[data-proj],[data-open],[data-go],[data-form],[data-mode],[data-col],[data-heat],[data-val],[data-clear],[data-year],[data-table],[data-file],[data-toast],[data-show-proj],[data-show-item],[data-tl-proj],.x,.tg"); if(!t) { if(e.target.id === "pal") palOpen(false); return; }
   const d = t.dataset;
   if(t.classList.contains("x")) return closeDrawer();
   if(t.classList.contains("tg")){ const on = t.getAttribute("aria-pressed") !== "true"; t.setAttribute("aria-pressed", on); ({tLabels:() => S.labels = on, tLinks:() => S.links = on, tScaf:() => S.scaf = on, tTurn:() => S.turn = on})[t.id](); return; }
   if(d.view) return go(d.view);
   if(d.form) return setForm(d.form);
+  if(d.mode) return setForm(d.mode === "anatomy" ? "anatomy" : d.mode === "groups" ? S.gform : S.tform);
+  if(d.col) return setThermal(d.col === "thermal");
+  if(d.heat !== undefined){ const v = +d.heat; F.heat = F.heat === v ? null : v; return filtersChanged(); }
   if(d.val !== undefined){ const v = +d.val; F.group = F.group && F.group.by === S.by && F.group.val === v ? null : {by:S.by, val:v}; return filtersChanged(); }
-  if(d.clear){ if(d.clear === "group") F.group = null; else if(d.clear === "project") F.project = null; else F.range = null; return filtersChanged(); }
+  if(d.clear){ if(d.clear === "heat") F.heat = null; else if(d.clear === "group") F.group = null; else if(d.clear === "project") F.project = null; else F.range = null; return filtersChanged(); }
   if(d.year !== undefined){ F.range = d.year === "all" ? null : [+d.year*12, +d.year*12+12]; return filtersChanged(); }
   if(d.table !== undefined){ tlTable = !tlTable; return renderTimeline(); }
   if(d.toast) return toast(d.toast);
@@ -810,16 +915,18 @@ document.addEventListener("click", e => { const t = e.target.closest("[data-view
 });
 $("#groupBy").addEventListener("change", e => { S.by = e.target.value; if(F.group && F.group.by !== S.by) F.group = null; applyLayout(S.form !== "anatomy"); filtersChanged(); });
 $("#sSize").addEventListener("input", e => { S.size = +e.target.value; }); $("#sGlow").addEventListener("input", e => { S.glow = +e.target.value; }); $("#sDust").addEventListener("input", e => { S.dust = +e.target.value; });
-$("#bReset").onclick = () => homeCam(false); $("#bClear").onclick = () => { F.group = null; F.project = null; F.range = null; filtersChanged(); };
+$("#bReset").onclick = () => homeCam(false); $("#bClear").onclick = () => { F.group = null; F.project = null; F.range = null; F.heat = null; filtersChanged(); };
+$("#across").addEventListener("change", e => { S.across = e.target.value; applyLayout(true); });
+$("#heatBy").addEventListener("change", e => { S.heat = e.target.value; F.heat = null; recolour(); filtersChanged(); });
 $("#vpBtn").onclick = () => $("#vp").classList.toggle("open"); $("#searchBtn").onclick = () => palOpen(true); $("#palIn").addEventListener("input", palSearch);
 addEventListener("keydown", e => { if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k"){ e.preventDefault(); return palOpen($("#pal").hidden); }
   if(!$("#pal").hidden){ if(e.key === "Escape") return palOpen(false); const els = $$("#palOut .ref"); if(e.key === "ArrowDown" || e.key === "ArrowUp"){ e.preventDefault(); palSel = clamp(palSel+(e.key === "ArrowDown" ? 1 : -1), 0, els.length-1); els.forEach((x, k) => x.classList.toggle("sel", k === palSel)); els[palSel] && els[palSel].scrollIntoView({block:"nearest"}); } else if(e.key === "Enter" && els[palSel]) els[palSel].click(); return; }
   if(e.key === "Escape"){ closeDrawer(); selected = -1; } if(e.key === "Enter" && e.target.matches(".live .row")) e.target.click(); });
 addEventListener("hashchange", () => go(location.hash.slice(1)));
 
-window.__os = { S, F, cam, PROJ, NI, N, go, setForm, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(pTo[i*3], pTo[i*3+1], pTo[i*3+2], [0,0,0]), zoomAt, isBrain, title, pick };
+window.__os = { S, F, cam, setThermal, heat, PROJ, NI, N, go, setForm, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(pTo[i*3], pTo[i*3+1], pTo[i*3+2], [0,0,0]), zoomAt, isBrain, title, pick };
 if(gl){ initGL(); bindInput(); } else $("#stage").innerHTML = '<p style="padding:24px;color:var(--ink-3)">The Brain view needs WebGL2. The other pages still work.</p>';
-$$("#formSeg button").forEach(b => b.classList.toggle("on", b.dataset.form === S.form));
+syncForm();
 applyLayout(false); filtersChanged(); renderInbox(); renderNow();
 // the field condenses into shape the first time the Brain is opened
 if(gl && !reduced){ for(let i=0;i<N;i++){ const k = i*3, q = 1.6+1.4*R(); pFrom[k] = pTo[k]*q+gauss()*30; pFrom[k+1] = pTo[k+1]*q+gauss()*30; pFrom[k+2] = pTo[k+2]*q+gauss()*30; } T = 0; uploadAll(); }
