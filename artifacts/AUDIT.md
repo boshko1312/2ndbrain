@@ -448,3 +448,39 @@ you want to assign them by hand.
 8. **Full colour range is busy.** If it reads as too much, the Colour range
    slider brings it back toward green.
 9. All v3 limitations still apply (synthetic data, close-up grain, no importer).
+
+## 10. Dashboard mockup — Body, forces, and a third audit pass
+
+Added to `second-brain-os.html`:
+
+- **Body shape** (eighth shape, works in Whole, Groups and Table). Brain, cerebellum, brainstem, 30 vertebrae, arm nerves from the neck, ribs from the chest, leg nerves from the base. Time runs down the body.
+- **Forces group**: swirl (rigid for Neuron, Orbit, Shell; faster near the centre for Galaxy, Globe, Nebula), turbulence, breathe, spread. Every sprite carries its body's centre and radius, and the forces are computed in the vertex shader. The same maths runs in JavaScript for hover, selection ring, labels and link endpoints.
+- **Slice viewer** for Scan: the slab drawn straight on in a small panel, with count and date range.
+
+Checked in this pass (headless Chromium, software GL):
+
+| Check | Result |
+|---|---|
+| All 24 shape × layout views render, no console errors | Pass |
+| Predicted item positions match drawn dots under swirl 3, turbulence 3, breathe 3, spread 1.3 (160 items, frozen clock) | 128–151 of 160 predicted positions have a dot; 7–13 of 160 for an offset control |
+| Tooltip appears on hover under maximum forces | 23 of 23 positions tried (Galaxy, Neuron, Globe groups) |
+| Reset look restores force defaults | Pass |
+| Scan switches itself off when leaving the Body | Pass |
+| Full user flow (`utest.js`) and record-size flow (`gtest.js`) | Pass |
+| Phone layout: Body view, Forces in the sheet, no horizontal overflow | Pass |
+
+Fixed in this pass:
+
+- Neuron and Body in Table were burnt out into blobs. Each view now measures how tightly it is packed and lowers brightness to match (Neuron table to 0.39, Body table to 0.65; most views unchanged).
+- The first Body draft looked like a dome on a feather. Rebuilt with a fissure, cerebellum, brainstem, ribs and limb nerves.
+- The slice viewer drew only the first 6,000 items it found, which filled one half of the brain. It now draws an even sample.
+- Auto-scan applied to Body in Groups and Table, where one plane across many bodies means little. It now applies to the whole Body only, and only for records above 5,000 items.
+
+Still rough:
+
+- In dense areas hover can pick a neighbour of the item you meant.
+- While scanning, hover only picks items inside the slice, so most of the Body does not respond to hover until Scan is off.
+- Swirl does nothing on Body or Block; the panel says so, but the slider stays enabled.
+- Scan position ignores the forces: with high spread or turbulence the lit slab is slightly off the drawn plane.
+- Frame rate is still unmeasured on a real GPU.
+

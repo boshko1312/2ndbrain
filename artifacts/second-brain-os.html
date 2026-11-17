@@ -115,6 +115,9 @@ body.at-timeline #stage{display:block;left:54%;border-left:.5px solid var(--sep)
 .heatEnds{display:flex;justify-content:space-between;padding:0 10px;font-size:11px;color:var(--ink-3)}
 .heatNote{margin:6px 10px;font-size:12.5px;color:var(--ink-2)}
 
+#slice{position:absolute;left:16px;top:58px;width:188px;padding:10px 12px 10px;border-radius:14px}
+#slice canvas{display:block;width:164px;height:164px;margin:6px 0 6px;border-radius:50%}
+#sliceInfo{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
 /* inspector */
 #vp{position:absolute;right:var(--gr);top:14px;width:286px;max-height:calc(100% - 28px);overflow:auto;padding:14px 12px 12px;border-radius:16px;scrollbar-width:thin}
 .gh{margin:16px 6px 6px}
@@ -253,7 +256,7 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
   #vp.open{display:block}
   #vpBtn{display:inline-flex}
   #legend{left:var(--gl);right:var(--gr);width:auto;max-height:118px;bottom:10px}
-  #bHint{display:none}
+  #bHint,#slice{display:none!important}
   .prow{grid-template-columns:minmax(0,1fr) auto}
   .prow .hide-s{display:none}
   #drawer{top:auto;left:0;right:0;bottom:0;height:80%;width:100%;border-radius:20px 20px 0 0;transform:translateY(104%);padding:22px var(--gr) 28px var(--gl)}
@@ -324,6 +327,16 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
           <div class="ir scanrow" hidden><label for="sScanT">Thickness</label><input type="range" id="sScanT" data-s="scanT" min="0.3" max="4" step="0.01"></div>
           <div class="ir scanrow" hidden><span>Sweep</span><button class="tg" id="tSweep" aria-pressed="true" aria-label="Sweep"></button></div>
         </div>
+        <h4 class="cap gh">Forces</h4>
+        <div class="il">
+          <div class="ir"><label for="sSwirl">Swirl</label><input type="range" id="sSwirl" data-s="swirl" min="0" max="3" step="0.01"></div>
+          <div class="ir"><label for="sTurb">Turbulence</label><input type="range" id="sTurb" data-s="turb" min="0" max="3" step="0.01"></div>
+          <div class="ir"><label for="sBreathe">Breathe</label><input type="range" id="sBreathe" data-s="breathe" min="0" max="3" step="0.01"></div>
+          <div class="ir"><label for="sSpread">Spread</label><input type="range" id="sSpread" data-s="spread" min="0.5" max="1.8" step="0.01"></div>
+          <div class="ir"><label for="sDrift">Drift</label><input type="range" id="sDrift" data-s="drift" min="0" max="4" step="0.01"></div>
+          <div class="ir"><label for="sPulse">Pulses</label><input type="range" id="sPulse" data-s="pulse" min="0" max="3" step="0.01"></div>
+        </div>
+        <p class="foot" id="forceNote"></p>
         <h4 class="cap gh">Drawn</h4>
         <div class="il">
           <div class="ir"><label for="sSize">Point size</label><input type="range" id="sSize" data-s="size" min="0.5" max="2.2" step="0.01"></div>
@@ -335,12 +348,11 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
           <div class="ir"><label for="sTw">Twinkle</label><input type="range" id="sTw" data-s="tw" min="0" max="2.5" step="0.01"></div>
           <div class="ir"><label for="sThr">Thread strength</label><input type="range" id="sThr" data-s="threads" min="0" max="3" step="0.01"></div>
           <div class="ir"><label for="sDepth">Depth fade</label><input type="range" id="sDepth" data-s="depth" min="0" max="1.6" step="0.01"></div>
-          <div class="ir"><label for="sDrift">Drift</label><input type="range" id="sDrift" data-s="drift" min="0" max="4" step="0.01"></div>
-          <div class="ir"><label for="sPulse">Pulses</label><input type="range" id="sPulse" data-s="pulse" min="0" max="3" step="0.01"></div>
         </div>
         <div class="btnrow"><button class="btn" id="bReset">Reset view</button><button class="btn" id="bLook">Reset look</button></div>
         <div class="btnrow" style="grid-template-columns:1fr"><button class="btn" id="bClear">Clear filters</button></div>
       </div>
+      <div id="slice" class="mat" hidden><div class="cap">Slice</div><canvas id="sliceCv" width="328" height="328"></canvas><div id="sliceInfo"></div></div>
       <div id="legend" class="mat"></div>
       <div id="bHint"></div>
     </section>
@@ -469,7 +481,7 @@ function computeHeat(){ const age = i => NOW_TM-iTm[i];
   else if(S.heat === "needs"){ const base = [1, 0.62, 0.4, 0.07, 0.5]; for(let i=0;i<NI;i++) heat[i] = clamp(base[iStat[i]]*(0.72+0.28*Math.exp(-age(i)/10)), 0, 1); }
   else { const ph = new Float32Array(NP+1); let mx = 0; for(let i=0;i<NI;i++) ph[iProj[i]+1] += Math.exp(-age(i)/1.5); const ord = [...ph.keys()].sort((a, b) => ph[a]-ph[b]), rank = new Float32Array(NP+1); ord.forEach((p, j) => rank[p] = j/NP); void mx;      // rank the projects so they spread over the whole ramp
     for(let i=0;i<NI;i++) heat[i] = clamp(0.62*rank[iProj[i]+1]+0.38*Math.exp(-age(i)/9), 0, 1); } }
-const LOOK = { pal:"aurora", custom:["#19ff8c","#35c8ff"], size:1, vary:1, expo:1, glow:0.6, haze:1, dust:1, tw:1, threads:1, depth:1, drift:1, pulse:1 };
+const LOOK = { pal:"aurora", custom:["#19ff8c","#35c8ff"], size:1, vary:1, expo:1, glow:0.6, haze:1, dust:1, tw:1, threads:1, depth:1, drift:1, pulse:1, swirl:0.35, turb:0.3, breathe:0.3, spread:1 };
 const S = Object.assign({ shape:"neuron", lay:"whole", by:"area", labels:true, links:true, scaf:true, turn:!reduced, across:"year", colBy:"group", heat:"activity", scan:false, scanPos:0.25, scanT:1, sweep:true, count:NI }, JSON.parse(JSON.stringify(LOOK)));
 const F = { group:null, project:null, range:null, heat:null };       // filters: {by,val} | project index | [m0,m1]
 const match = i => (!F.group || GROUPS[F.group.by].of(i) === F.group.val) && (F.project === null || iProj[i] === F.project) && (!F.range || (iTm[i] >= F.range[0] && iTm[i] < F.range[1])) && (F.heat === null || band(heat[i]) === F.heat);
@@ -490,10 +502,11 @@ for(let d=0;d<ND;d++){ const r = (0.35+Math.abs(gauss())*0.8)*(R() < 0.15 ? 2.2 
 const pFrom = new Float32Array(N*3), pTo = new Float32Array(N*3), pCol = new Float32Array(N*3), pMisc = new Float32Array(N*4);   // misc: lit, magnitude, phase, kind (0 item, 1 scaffold, 2 dust)
 for(let i=0;i<N;i++){ const kind = i < NI ? 0 : i < DB ? 1 : i < HB ? 2 : 3; pMisc[i*4] = 1; pMisc[i*4+2] = R(); pMisc[i*4+3] = kind; pCol[i*3] = pCol[i*3+1] = pCol[i*3+2] = 0.9;
   pMisc[i*4+1] = kind === 0 ? (R() < 0.03 ? 1 : Math.pow(R(), 3)*0.8) : kind === 1 ? 0.45+0.5*R() : kind === 2 ? 0.1+0.3*R()*R() : 0.4+0.6*R(); }
+const pCen = new Float32Array(N*4);                       // the body each sprite belongs to: centre and radius. Forces act relative to it.
 const pBirth = new Float32Array(N);                       // when each sprite appears during growth playback, 0 to 1
 let labels = [], extent = {w:74, h:72, cy:0}, insts = [];
 let flBuf = [];                                           // thread and frame lines for the current view
-const fl = (x1, y1, z1, x2, y2, z2, c, a) => flBuf.push(x1, y1, z1, c[0], c[1], c[2], a, x2, y2, z2, c[0], c[1], c[2], a);
+const Z4 = [0, 0, 0, 0], fl = (x1, y1, z1, x2, y2, z2, c, a, C = Z4) => flBuf.push(x1, y1, z1, c[0], c[1], c[2], a, C[0], C[1], C[2], C[3], x2, y2, z2, c[0], c[1], c[2], a, C[0], C[1], C[2], C[3]);
 const WHITE = [1, 1, 1], NEUTRAL = [0.62, 0.72, 0.78], hr = n => (hash(n) & 0xffff)/65535;
 const shown = i => RANK[i] < S.count;                     // is this item part of the record at its current size?
 function groupStats(){ const g = GROUPS[S.by], n = g.meta.length, cnt = new Int32Array(n); for(let i=0;i<NI;i++) if(RANK[i] < S.count) cnt[g.of(i)]++; return cnt; }
@@ -501,14 +514,14 @@ const unit3 = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0]/l
 const cross3 = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
 const fib = (j, n) => { const y = n > 1 ? 1-2*(j+0.5)/n : 0, r = Math.sqrt(1-y*y), a = j*2.39996+0.6; return [r*Math.cos(a), y, r*Math.sin(a)]; };
 const W = (it, x, y, z) => [it.cx+x*it.r, it.cy+(y*it.ct-z*it.st)*it.r, it.cz+(y*it.st+z*it.ct)*it.r];      // a body's local point in the world
-const put = (i, it, x, y, z) => { const k = i*3; pTo[k] = it.cx+x*it.r; pTo[k+1] = it.cy+(y*it.ct-z*it.st)*it.r; pTo[k+2] = it.cz+(y*it.st+z*it.ct)*it.r; };
-const seg = (it, a, b, al) => { const p = W(it, a[0], a[1], a[2]), q = W(it, b[0], b[1], b[2]); fl(p[0], p[1], p[2], q[0], q[1], q[2], WHITE, al); };
+const put = (i, it, x, y, z) => { const k = i*3, q = i*4; pTo[k] = it.cx+x*it.r; pTo[k+1] = it.cy+(y*it.ct-z*it.st)*it.r; pTo[k+2] = it.cz+(y*it.st+z*it.ct)*it.r; pCen[q] = it.cx; pCen[q+1] = it.cy; pCen[q+2] = it.cz; pCen[q+3] = it.r; };
+const seg = (it, a, b, al) => { const p = W(it, a[0], a[1], a[2]), q = W(it, b[0], b[1], b[2]); fl(p[0], p[1], p[2], q[0], q[1], q[2], WHITE, al, [it.cx, it.cy, it.cz, it.r]); };
 function parts(it){                                       // split one body's items into its inner parts
   const key = it.whole ? GROUPS[S.by].of : (S.by === "project" ? i => iType[i] : i => iProj[i]+1), m = new Map(); let t0 = 1e9, t1 = -1e9;
   for(const i of it.items){ const k = key(i); let a = m.get(k); if(!a) m.set(k, a = []); a.push(i); const t = iTm[i]; if(t < t0) t0 = t; if(t > t1) t1 = t; }
   const ord = [...m.keys()].sort((a, b) => m.get(b).length-m.get(a).length), n = it.items.length; if(t1-t0 < 3) t0 = Math.max(0, t1-3);
   return {ord, items:ord.map(k => m.get(k)), share:ord.map(k => m.get(k).length/n), n:ord.length, u:i => clamp((iTm[i]-t0)/(t1-t0), 0, 1)}; }
-const partLabel = (it, P, j, x, y, z, opt) => { if(it.whole && P.n <= 12) labels.push(Object.assign({t:GROUPS[S.by].meta[P.ord[j]][0], p:W(it, x, y, z), c:""}, opt)); };
+const partLabel = (it, P, j, x, y, z, opt) => { if(it.whole && P.n <= 12) labels.push(Object.assign({t:GROUPS[S.by].meta[P.ord[j]][0], p:W(it, x, y, z), c:"", cen:[it.cx, it.cy, it.cz, it.r]}, opt)); };
 function wander(start, dir, len, seed, bend){ const n = Math.max(5, Math.round(len*26)), pts = [start.slice()]; let d = dir.slice(), p = start.slice();
   for(let k=1;k<=n;k++){ const t = k*0.33; d = unit3([d[0]+bend*(vnoise(seed, t, 1.7)-0.5), d[1]+bend*(vnoise(seed, t, 5.3)-0.5), d[2]+bend*(vnoise(seed, t, 9.9)-0.5)]);
     const l = Math.hypot(p[0], p[1], p[2]) || 1; if((d[0]*p[0]+d[1]*p[1]+d[2]*p[2])/l < 0.3) d = unit3([d[0]+p[0]/l*0.35, d[1]+p[1]/l*0.35, d[2]+p[2]/l*0.35]);      // keep growing away from the centre
@@ -549,22 +562,54 @@ const SH = {
     for(let j=0;j<n;j++){ const r0 = 0.2+0.8*(n-1-j)/n;
       for(const i of P.items[j]){ const lat = (P.u(i)-0.5)*2.7+gauss()*0.03, az = CUT+R()*(TAU-2*CUT), q = r0+R()*th*0.55, cl = Math.cos(lat); put(i, it, cl*Math.sin(az)*q, Math.sin(lat)*q, cl*Math.cos(az)*q); }
       const lat = -0.95+1.9*j/Math.max(1, n-1), q = r0+th*0.27; partLabel(it, P, j, Math.cos(lat)*Math.sin(CUT)*q, Math.sin(lat)*q, Math.cos(lat)*Math.cos(CUT)*q, {left:true}); } },
+  body(it){ const P = parts(it), n = P.n, NV = 30, all = it.items.slice().sort((a, b) => iTm[a]-iTm[b]);      // the newest part of the record is the brain; the rest runs down the spine, oldest at the bottom
+    if(!all.length) return; const t0 = iTm[all[0]], tCut = iTm[all[Math.min(all.length-1, Math.floor(all.length*0.6))]], span = Math.max(0.5, tCut-t0), BY = 0.74, DY = 1.04/NV;
+    const cen = v => { const t = v/NV; return [0.008*Math.sin(t*8.5+1), 0.42-t*1.04, 0.05*Math.sin(t*5.6+0.5)-0.02]; }, sm = x => { x = clamp(x, 0, 1); return x*x*(3-2*x); };
+    const root = (v, sd, g, f, o) => { const t = v/NV, c = cen(v), y0 = c[1]-g*DY;                     // one nerve leaving the cord: arms from the neck, ribs from the chest, legs from the base
+      if(t < 0.24){ const k = sm(t/0.24), L = 0.1+0.5*k, dn = 0.25+0.9*k; o[0] = c[0]+sd*(0.3*Math.sin(Math.min(1, f*1.5)*1.5708)*(0.5+0.6*k)+0.04*f*g); o[1] = y0-f*0.06-dn*f*f*L; o[2] = c[2]+0.05*f*(g-0.3); }
+      else if(t < 0.68){ const k = (t-0.24)/0.44, rx = 0.2*(0.8+0.25*Math.sin(k*3.1416)), ph = f*2.5; o[0] = c[0]+sd*rx*Math.sin(ph); o[1] = y0-0.07*f-0.02*Math.sin(ph); o[2] = c[2]+rx*0.72*(1-Math.cos(ph)); }
+      else { const k = (t-0.68)/0.32, L = 0.14+0.4*k; o[0] = c[0]+sd*(0.03+0.085*sm(f*1.7)+0.035*g*f+0.02*(1-k)*f); o[1] = y0-f*L; o[2] = c[2]+0.04*f*(g-0.5)+0.03*f*f; }
+      return o; };
+    const stem = (f, o) => { const c = cen(0); o[0] = c[0]*f; o[1] = BY-0.1+(c[1]-BY+0.1)*f; o[2] = -0.05+(c[2]+0.05)*f; return o; }, q0 = [0, 0, 0], q1 = [0, 0, 0];
+    for(let k=0;k<6;k++) seg(it, stem(k/6, q0).slice(), stem((k+1)/6, q1).slice(), 0.8);
+    const has = new Uint8Array(NV*n); let vTop = NV;
+    for(let j=0;j<n;j++){ const d0 = fib(j, n), sp = n === 1 ? 9 : 0.3+0.95*Math.sqrt(P.share[j]);
+      for(const i of P.items[j]){
+        if(iTm[i] >= tCut){ const w = R(); let px = 0, py = BY, pz = 0;
+          if(w < 0.09){ const sd = R() < 0.5 ? -1 : 1, u = unit3([gauss(), gauss(), gauss()]), rr = 0.82+0.18*R(); px = sd*0.07+u[0]*0.085*rr; py = BY-0.115+Math.round(u[1]*0.05*rr*90)/90+gauss()*0.0015; pz = -0.14+u[2]*0.075*rr; if(px*sd < 0.004) px = sd*0.004; }      // cerebellum: two small leaves, finely layered
+          else if(w < 0.13){ const f = R(), a = R()*TAU, rr = 0.034*(1-0.4*f)*(0.85+0.15*R()); stem(f, q0); px = q0[0]+Math.cos(a)*rr; py = q0[1]; pz = q0[2]+Math.sin(a)*rr; }                                          // brainstem
+          else for(let tr=0;tr<8;tr++){ let x = d0[0]+gauss()*sp, y = d0[1]*0.8+gauss()*sp, z = d0[2]+gauss()*sp; const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l;                                  // cortex: a folded shell with two unequal halves; each part is a region of it
+            const sd = x < 0 ? -1 : 1, lump = 1+0.2*(vnoise(x*1.7+sd*13.7+3, y*1.7+5, z*1.7+8)-0.5), dip = 1-0.3*Math.exp(-(x*x)/0.02)*(y > 0 ? 1 : 0.3), nar = y < 0 ? 1-0.3*y*y : 1;
+            const sx = x*0.2*(sd < 0 ? 1.05 : 0.97)*lump*nar, sy = y*0.17*(y < 0 ? 0.72+0.2*x*x : 1)*lump*dip, sz = z*0.25*lump*(1+0.06*sd*z);
+            const nz = 0.6*vnoise(sx*22+sd*31.7, sy*22+5.2, sz*18+9.4)+0.4*vnoise(sx*47+3, sy*47+1, sz*40+7), rd = Math.min(Math.abs(nz-0.36), Math.abs(nz-0.5), Math.abs(nz-0.64)), deep = R() < 0.12, sh = deep ? 0.4+0.5*Math.sqrt(R()) : 0.95+0.05*R();
+            px = sx*sh; if(Math.abs(px) < 0.015) px = sd*(0.015+Math.abs(gauss())*0.004); py = BY+sy*sh; pz = sz*sh+0.01; if(deep || rd >= 0.016 || R() > 0.95) break; }
+          put(i, it, px, py, pz); continue; }
+        const v = Math.min(NV-1, Math.floor((1-(iTm[i]-t0)/span)*NV)), q = R(); has[v*n+j] = 1; if(v < vTop) vTop = v; const g = n === 1 ? R() : j/n+R()*0.8/n, sd = R() < 0.5 ? -1 : 1;          // spine: one vertebra per stretch of time
+        if(q < 0.2){ const c = cen(v+R()*0.55), a = R()*TAU, rr = 0.024*(0.8+0.4*R())*(1+0.4*v/NV); put(i, it, c[0]+Math.cos(a)*rr, c[1]+gauss()*0.004, c[2]+Math.sin(a)*rr*0.8); }
+        else if(q < 0.26){ const c = cen(v+R()*0.55), f = R(); put(i, it, c[0]+gauss()*0.004, c[1]-f*0.018, c[2]-0.03-f*0.04); }
+        else { root(v, sd, g, Math.pow(R(), 0.8), q0); put(i, it, q0[0]+gauss()*0.0035, q0[1]+gauss()*0.0035, q0[2]+gauss()*0.0035); } }
+      partLabel(it, P, j, d0[0]*0.2, BY+d0[1]*0.8*0.17, d0[2]*0.25, {lead:W(it, 0, BY, 0)}); }
+    for(let v=vTop;v<NV;v++){ seg(it, cen(v), cen(v+1), 0.9);                                     // a nerve is drawn only once it holds something
+      for(let j=0;j<n;j++){ if(!has[v*n+j]) continue; for(const sd of [-1, 1]){ const g = n === 1 ? 0.5 : j/n; let p = cen(v); p[1] -= g*DY; for(let q=1;q<=5;q++){ const e = root(v, sd, g, q/5, [0, 0, 0]); seg(it, p, e, 0.42-0.06*q); p = e; } } } }
+    for(let v=0;v<vTop;v++) seg(it, cen(v), cen(v+1), 0.9);
+    if(it.whole){ const my = tm => MON[Math.floor(tm) % 12]+" "+(2021+Math.floor(tm/12)); labels.push({t:"Brain · since "+my(tCut), p:W(it, 0.3, BY+0.24, 0), c:"yr"});
+      for(let yv=Math.ceil(t0/12);yv*12<tCut;yv++) labels.push({t:String(2021+yv), p:W(it, -0.42, 0.42-(1-(yv*12-t0)/span)*1.04, 0), c:"yr", right:true}); } },
   nebula(it){ const P = parts(it), n = P.n;                                                      // a loose cloud; each part is a clump tied to the centre
     for(let j=0;j<n;j++){ const sd = it.id*131+j*17, d = fib(j, n), dist = n === 1 ? 0 : 0.22+0.52*hr(sd+1), c = [d[0]*dist, d[1]*dist, d[2]*dist], rad = n === 1 ? 0.5 : 0.14+0.4*Math.sqrt(P.share[j]), ax = fib(hash(sd) % 97, 97);
       if(n > 1) seg(it, [0,0,0], c, 0.24);
       for(const i of P.items[j]){ const far = R() < 0.1 ? 2.4 : 1, st = gauss()*rad*0.9*far; put(i, it, c[0]+gauss()*rad*0.45*far+ax[0]*st, c[1]+gauss()*rad*0.45*far+ax[1]*st, c[2]+gauss()*rad*0.45*far+ax[2]*st); }
       partLabel(it, P, j, c[0], c[1]+rad*0.9+0.04, c[2]); } }
 };
-const DISC = {galaxy:1, orbit:1}, CORE = {neuron:0.034, galaxy:0.05, nebula:0.03, globe:0.03, shell:0.06, orbit:0.035, block:0};
+const DISC = {galaxy:1, orbit:1}, CORE = {neuron:0.034, galaxy:0.05, nebula:0.03, globe:0.03, shell:0.06, orbit:0.035, block:0, body:0};
 const mk = (items, cx, cy, cz, r, whole, tilt) => ({items, cx, cy, cz, r, whole, ct:Math.cos(tilt), st:Math.sin(tilt), id:insts.length});
 function buildView(){ const g = GROUPS[S.by], sh = S.shape, lay = S.lay; insts = []; labels = []; brId = 0;
   if(sh === "block") return ({whole:layoutTracks, groups:layoutMosaic, table:layoutMatrix})[lay]();
-  const disc = !!DISC[sh], tilt = disc && lay !== "whole" ? 1.0 : 0;                             // discs lie flat when alone and lean toward you in a grid
+  const disc = !!DISC[sh], tilt = disc && lay !== "whole" ? 1.0 : 0; viewAxis = [0, Math.cos(tilt), Math.sin(tilt)];                             // discs lie flat when alone and lean toward you in a grid
   if(lay === "whole"){ const all = []; for(let i=0;i<NI;i++) if(RANK[i] < S.count) all.push(i); const sc = clamp(Math.pow(S.count/NI, 0.3), 0.2, 1);      // a small record makes a small body
-    const it = mk(all, 0, 0, 0, 62*sc, true, 0); insts.push(it); SH[sh](it); extent = disc ? {w:78*sc, h:62*sc, cy:0} : {w:76*sc, h:74*sc, cy:0}; return; }
+    const it = mk(all, 0, 0, 0, 62*sc, true, 0); insts.push(it); SH[sh](it); extent = disc ? {w:78*sc, h:62*sc, cy:0} : sh === "body" ? {w:34*sc, h:67*sc, cy:-5*sc} : {w:76*sc, h:74*sc, cy:0}; return; }
   if(lay === "groups"){ const b = new Map(); for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const k = g.of(i); let a = b.get(k); if(!a) b.set(k, a = []); a.push(i); }
     const ord = [...b.keys()].sort((x, y) => b.get(y).length-b.get(x).length), n = ord.length, rad = [], cx = [], cy = []; let acc = 0;
-    ord.forEach((k, j) => { const c = b.get(k).length; rad[j] = sh === "neuron" || disc ? 0.62*Math.sqrt(c)+5 : sh === "nebula" ? 3.3*Math.cbrt(c)+4 : 2.4*Math.cbrt(c)+3; const r = 1.3*Math.sqrt(acc), a = j*2.39996; cx[j] = Math.cos(a)*r; cy[j] = Math.sin(a)*r*0.72; acc += rad[j]*rad[j]; });
+    ord.forEach((k, j) => { const c = b.get(k).length; rad[j] = sh === "neuron" || sh === "body" || disc ? 0.62*Math.sqrt(c)+5 : sh === "nebula" ? 3.3*Math.cbrt(c)+4 : 2.4*Math.cbrt(c)+3; const r = 1.3*Math.sqrt(acc), a = j*2.39996; cx[j] = Math.cos(a)*r; cy[j] = Math.sin(a)*r*0.72; acc += rad[j]*rad[j]; });
     const hy = disc ? 0.8 : 1;                                                                  // a leaning disc takes less height
     for(let q=0;q<200;q++) for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){ let dx = cx[j]-cx[i], dy = (cy[j]-cy[i])/hy; const d = Math.hypot(dx, dy) || 0.01, need = (rad[i]+rad[j])*1.1;
       if(d < need){ const p = (need-d)/d*0.5; dx *= p; dy *= p*hy; cx[i] -= dx; cy[i] -= dy; cx[j] += dx; cy[j] += dy; } }
@@ -591,10 +636,10 @@ function buildWeb(){ if(S.shape !== "neuron" && S.shape !== "nebula"){ webPairs 
     for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++){ const a = grid.get(key(x+dx*cell, y+dy*cell, z+dz*cell)); if(!a) continue;
       for(const j of a){ if(j === i || iProj[j] !== iProj[i]) continue; const d = (pTo[j*3]-x)**2+(pTo[j*3+1]-y)**2+(pTo[j*3+2]-z)**2; if(d < d1){ b2 = b1; d2 = d1; b1 = j; d1 = d; } else if(d < d2){ b2 = j; d2 = d; } } }
     if(b1 >= 0) out.push(i, b1); if(b2 >= 0 && (hash(i) & 1)) out.push(i, b2); }
-  webPairs = Int32Array.from(out); webData = new Float32Array(webPairs.length*7); }
-function fillWeb(){ for(let v=0;v<webPairs.length;v++){ const i = webPairs[v], o = v*7, pr = webPairs[v ^ 1]; webData[o] = pTo[i*3]; webData[o+1] = pTo[i*3+1]; webData[o+2] = pTo[i*3+2];
+  webPairs = Int32Array.from(out); webData = new Float32Array(webPairs.length*11); }
+function fillWeb(){ for(let v=0;v<webPairs.length;v++){ const i = webPairs[v], o = v*11, pr = webPairs[v ^ 1]; webData[o+7] = pCen[i*4]; webData[o+8] = pCen[i*4+1]; webData[o+9] = pCen[i*4+2]; webData[o+10] = pCen[i*4+3]; webData[o] = pTo[i*3]; webData[o+1] = pTo[i*3+1]; webData[o+2] = pTo[i*3+2];
     webData[o+3] = pCol[i*3]; webData[o+4] = pCol[i*3+1]; webData[o+5] = pCol[i*3+2]; webData[o+6] = 0.13*Math.min(pMisc[i*4], pMisc[pr*4]); }
-  if(gl && bWeb){ gl.bindBuffer(gl.ARRAY_BUFFER, bWeb); gl.bufferData(gl.ARRAY_BUFFER, webData.length ? webData : new Float32Array(7), gl.DYNAMIC_DRAW); } }
+  if(gl && bWeb){ gl.bindBuffer(gl.ARRAY_BUFFER, bWeb); gl.bufferData(gl.ARRAY_BUFFER, webData.length ? webData : new Float32Array(11), gl.DYNAMIC_DRAW); } }
 function layoutTracks(){ const g = GROUPS[S.by], cnt = groupStats(), n = cnt.length, ord = [...Array(n).keys()].filter(k => cnt[k]).sort((a, b) => cnt[b]-cnt[a]);
   const y0 = new Float32Array(n), h = new Float32Array(n); let sum = 0; for(const k of ord){ h[k] = Math.max(1.4, Math.sqrt(cnt[k])); sum += h[k]; } const H = Math.min(78, 22+ord.length*3.4); let acc = H/2; for(const k of ord){ h[k] = h[k]/sum*H; acc -= h[k]; y0[k] = acc; }
   const W = 156, xOf = tm => (tm/(NM+1)-0.5)*W;
@@ -636,9 +681,10 @@ const SHAPES = [["neuron","Neuron","A glowing core with a fibre for each part. I
   ["globe","Globe","A ball where each part is a patch."],
   ["shell","Shell","Nested shells with a slice cut out, smallest part in the middle. Old at the bottom, new at the top."],
   ["nebula","Nebula","A loose cloud where each part is a clump tied to the centre."],
+  ["body","Body","A nervous system. The newest part of the record is the brain, one region per part. Older items run down the spine and out along the nerves, oldest at the bottom."],
   ["block","Block","Flat blocks. Whole is a timeline, Groups is boxes inside boxes, Table is a grid of counts."]];
 const LAYS = { whole:"Whole: everything in one body, with the groups as its parts.", groups:"Groups: one body per group, sized by how much is in it.", table:"Table: groups run down, and a second property runs across." };
-const GLYPH = { neuron:'<circle cx="12" cy="12" r="2.4"/><path d="M12 9.6V4M9.8 13.2 4.5 17M14.2 13.2 19.5 17M12 4 9 2.5M12 4l3-1.5M4.5 17 3 20M19.5 17l1.5 3"/>', galaxy:'<path d="M12 12c0-3 3-5 6-4M12 12c0 3-3 5-6 4M12 12c3 0 5 3 4 6M12 12c-3 0-5-3-4-6"/><circle cx="12" cy="12" r="1.3"/>', orbit:'<ellipse cx="12" cy="12" rx="9" ry="4.2"/><ellipse cx="12" cy="12" rx="5" ry="2.2"/>', globe:'<circle cx="12" cy="12" r="8.5"/><path d="M5 9c4 2 10 2 14 0M5.5 15.5c4-2 9-2 13 0"/>', shell:'<path d="M12 3.5A8.5 8.5 0 1 0 20.5 12"/><path d="M12 7.5A4.5 4.5 0 1 0 16.5 12"/><circle cx="12" cy="12" r="1"/>', nebula:'<circle cx="8" cy="9" r="3"/><circle cx="16" cy="8" r="2"/><circle cx="15" cy="16" r="3.4"/><circle cx="6.5" cy="17" r="1.5"/>', block:'<rect x="4" y="4" width="7" height="9" rx="1.2"/><rect x="13" y="4" width="7" height="5" rx="1.2"/><rect x="13" y="11" width="7" height="9" rx="1.2"/><rect x="4" y="15" width="7" height="5" rx="1.2"/>' };
+const GLYPH = { body:'<ellipse cx="12" cy="6" rx="4.2" ry="3.6"/><path d="M12 9.6V21M12 12.5l-3.5 1.5M12 12.5l3.5 1.5M12 15.5l-4 1.8M12 15.5l4 1.8M12 18.5l-3 1.5M12 18.5l3 1.5"/>', neuron:'<circle cx="12" cy="12" r="2.4"/><path d="M12 9.6V4M9.8 13.2 4.5 17M14.2 13.2 19.5 17M12 4 9 2.5M12 4l3-1.5M4.5 17 3 20M19.5 17l1.5 3"/>', galaxy:'<path d="M12 12c0-3 3-5 6-4M12 12c0 3-3 5-6 4M12 12c3 0 5 3 4 6M12 12c-3 0-5-3-4-6"/><circle cx="12" cy="12" r="1.3"/>', orbit:'<ellipse cx="12" cy="12" rx="9" ry="4.2"/><ellipse cx="12" cy="12" rx="5" ry="2.2"/>', globe:'<circle cx="12" cy="12" r="8.5"/><path d="M5 9c4 2 10 2 14 0M5.5 15.5c4-2 9-2 13 0"/>', shell:'<path d="M12 3.5A8.5 8.5 0 1 0 20.5 12"/><path d="M12 7.5A4.5 4.5 0 1 0 16.5 12"/><circle cx="12" cy="12" r="1"/>', nebula:'<circle cx="8" cy="9" r="3"/><circle cx="16" cy="8" r="2"/><circle cx="15" cy="16" r="3.4"/><circle cx="6.5" cy="17" r="1.5"/>', block:'<rect x="4" y="4" width="7" height="9" rx="1.2"/><rect x="13" y="4" width="7" height="5" rx="1.2"/><rect x="13" y="11" width="7" height="9" rx="1.2"/><rect x="4" y="15" width="7" height="5" rx="1.2"/>' };
 let T = 1;                                                // transition progress
 const wOf = i => { const w = clamp(T*1.5-pMisc[i*4+2]*0.5, 0, 1); return w*w*(3-2*w); };
 const emis = h => { const c = hex(h), l = 0.3*c[0]+0.59*c[1]+0.11*c[2], o = c.map(v => clamp(l+(v-l)*1.5, 0, 1)), m = Math.max(...o), sat = (m-Math.min(...o))/m; return o.map(v => v/m*(0.5+0.5*Math.min(1, sat*1.6))); };   // glowing version of a swatch colour
@@ -674,17 +720,23 @@ function recolour(){ colourize(); fillWeb(); uploadCol(); renderLegend(); }
 function relit(){ const any = anyF(); let n = 0;
   for(let i=0;i<NI;i++){ const m = RANK[i] < S.count && (!any || match(i)); pMisc[i*4] = m ? 1 : 0.085; if(m) n++; }
   for(let i=NI;i<DB;i++) pMisc[i*4] = any ? 0.35 : 1; for(let d=0;d<ND;d++) pMisc[(DB+d)*4] = pMisc[(d % NI)*4]; for(let h=0;h<NH;h++) pMisc[(HB+h)*4] = pMisc[hPar[h]*4]; fillWeb(); return n; }
+let crowdG = 1, crowdNow = 1, frozen = false;
+function crowd(){ const G = 96, half = Math.max(extent.h, extent.w*0.62) || 1, cy = extent.cy || 0, bins = new Uint16Array(G*G), up = DISC[S.shape] && S.lay === "whole" ? 2 : 1;      // how tightly the picture is packed: items per small square of the fitted view
+  for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const x = Math.floor((pTo[i*3]/half*0.5+0.5)*G), y = Math.floor(((pTo[i*3+up]-(up === 1 ? cy : 0))/half*0.5+0.5)*G); if(x >= 0 && x < G && y >= 0 && y < G) bins[y*G+x]++; }
+  const v = Array.from(bins).filter(c => c).sort((a, b) => a-b); const d = v.length ? v[Math.floor(v.length*0.85)] : 0; return clamp(Math.pow(130/Math.max(1, d), 0.75), 0.3, 1); }      // tightly packed pictures are drawn dimmer so they do not burn out
 function applyLayout(animate){
   for(let i=0;i<N;i++){ const w = wOf(i), k = i*3; pFrom[k] += (pTo[k]-pFrom[k])*w; pFrom[k+1] += (pTo[k+1]-pFrom[k+1])*w; pFrom[k+2] += (pTo[k+2]-pFrom[k+2])*w; }
-  flBuf = []; frameA = 0; buildView();
-  frameVerts = flBuf.length/7; if(gl && bFrame){ gl.bindBuffer(gl.ARRAY_BUFFER, bFrame); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flBuf.length ? flBuf : 7), gl.DYNAMIC_DRAW); }
+  flBuf = []; frameA = 0; pCen.fill(0); buildView();
+  frameVerts = flBuf.length/11; if(gl && bFrame){ gl.bindBuffer(gl.ARRAY_BUFFER, bFrame); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flBuf.length ? flBuf : 11), gl.DYNAMIC_DRAW); }
   const core = CORE[S.shape];                              // a glowing core at the heart of every body
-  for(let q=0;q<NS;q++){ const k = (NI+q)*3; if(!core || !insts.length){ pTo[k] = pTo[k+1] = pTo[k+2] = 0; continue; } const it = insts[q % insts.length], r = it.r*core; pTo[k] = it.cx+gauss()*r; pTo[k+1] = it.cy+gauss()*r; pTo[k+2] = it.cz+gauss()*r; }
+  for(let q=0;q<NS;q++){ const k = (NI+q)*3; if(!core || !insts.length){ pTo[k] = pTo[k+1] = pTo[k+2] = 0; continue; } const it = insts[q % insts.length], r = it.r*core, c4 = (NI+q)*4; pTo[k] = it.cx+gauss()*r; pTo[k+1] = it.cy+gauss()*r; pTo[k+2] = it.cz+gauss()*r; pCen[c4] = it.cx; pCen[c4+1] = it.cy; pCen[c4+2] = it.cz; pCen[c4+3] = it.r; }
   const ds = S.lay === "whole" ? 0.9 : 0.5; for(let d=0;d<ND;d++){ const p = (d % NI)*3, k = (DB+d)*3; pTo[k] = pTo[p]+dOff[d*3]*ds; pTo[k+1] = pTo[p+1]+dOff[d*3+1]*ds; pTo[k+2] = pTo[p+2]+dOff[d*3+2]*(S.shape === "block" ? 0.3 : ds); }
   for(let h=0;h<NH;h++){ const p = hPar[h]*3, k = (HB+h)*3; pTo[k] = pTo[p]; pTo[k+1] = pTo[p+1]; pTo[k+2] = pTo[p+2]; }
+  for(let d=0;d<ND;d++) pCen.copyWithin((DB+d)*4, (d % NI)*4, (d % NI)*4+4); for(let h=0;h<NH;h++) pCen.copyWithin((HB+h)*4, hPar[h]*4, hPar[h]*4+4);
   for(let i=0;i<NI;i++) pBirth[i] = RANK[i] < S.count ? RANK[i]/S.count : 9; for(let d=0;d<ND;d++) pBirth[DB+d] = pBirth[d % NI]; for(let h=0;h<NH;h++) pBirth[HB+h] = pBirth[hPar[h]];
-  buildWeb(); colourize(); fillWeb(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false);
+  buildWeb(); colourize(); fillWeb(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false); crowdG = crowd();
   $("#formNote").textContent = SHAPES.find(x => x[0] === S.shape)[2]+" "+LAYS[S.lay];
+  $("#forceNote").textContent = S.shape === "block" ? "Forces do not move flat blocks." : S.shape === "body" ? "The Body does not swirl. The other forces still apply." : "Each body moves about its own centre.";
   $("#bHint").textContent = "Drag to move · right-drag to rotate · scroll to zoom · R rotation · G growth · H hide interface";
 }
 
@@ -695,17 +747,23 @@ function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src)
 function prog(vs, fs, attrs){ const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); (attrs || []).forEach((a, i) => gl.bindAttribLocation(p, i, a)); gl.linkProgram(p);
   if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for(let i=0;i<n;i++){ const x = gl.getActiveUniform(p, i); u[x.name] = gl.getUniformLocation(p, x.name); } return {p, u}; }
 let frameVerts = 0, frameA = 0, thermA = 0, bFrame = null, vaoFr = null;
-let bBirth = null, growing = false, growT = 2; const GROW_SECS = 14;
+let bCen = null, bBirth = null, growing = false, growT = 2; const GROW_SECS = 14;
 let pP, pL, pD, pU, pC, vaoP, vaoL, vaoF, vaoN, vaoW, bFrom, bTo, bCol, bMisc, bLine, bNerve, bWeb = null;
 const MAXV = 8*16*2, lineData = new Float32Array(MAXV*7); let lineVerts = 0;
 function initGL(){
-  const LIVE = `uniform float uTime, uAnat, uWave;
-vec3 live(vec3 P){ return P; }
+  const LIVE = `uniform float uTime, uAnat, uWave, uSwirl, uTurb, uBreathe, uSpread, uSwMode; uniform vec3 uAxis;
+vec3 live(vec3 P, vec4 C){                            // forces, all relative to the sprite's own body
+  if(C.w<=0.0) return P;
+  vec3 d=(P-C.xyz)*uSpread; float r=length(d)/C.w;
+  d*=1.0+uBreathe*0.045*sin(uTime*0.9-r*3.2);
+  if(uSwMode>0.5){ float th=uSwirl*uTime*(uSwMode>1.5?0.2/(0.3+r):0.14), c=cos(th), s=sin(th); d=d*c+cross(uAxis,d)*s+uAxis*dot(uAxis,d)*(1.0-c); }
+  float k=4.0/C.w; d+=uTurb*C.w*0.03*vec3(sin(d.y*k+uTime*0.31)+0.5*sin(d.z*k*2.3-uTime*0.23),sin(d.z*k+uTime*0.27)+0.5*sin(d.x*k*2.3+uTime*0.19),sin(d.x*k-uTime*0.29)+0.5*sin(d.y*k*2.3+uTime*0.21));
+  return C.xyz+d; }
 float signal(vec3 P){ return uAnat*pow(max(0.0,sin(length(P)*0.2-uTime*1.5)),14.0); }
 `;
   pP = prog(`#version 300 es
 precision highp float;
-in vec3 aFrom; in vec3 aTo; in vec3 aCol; in vec4 aMisc; in float aBirth; uniform float uGrow;
+in vec3 aFrom; in vec3 aTo; in vec3 aCol; in vec4 aMisc; in float aBirth; in vec4 aCen; uniform float uGrow;
 uniform mat4 uVP; uniform float uT, uPx, uSize, uK, uGain, uScaf, uDist, uDust, uHaze, uVary, uTw, uDepthF, uDrift, uScan, uScanPos, uScanT; uniform vec3 uScanAx;
 out vec3 vCol; out float vHot; out float vHz;
 `+LIVE+`void main(){
@@ -713,7 +771,7 @@ out vec3 vCol; out float vHot; out float vHz;
   vec3 d=aTo-aFrom, P=mix(aFrom,aTo,w);
   P+=normalize(cross(d+vec3(0.001),vec3(0.3,1.0,0.2)))*sin(3.14159*w)*length(d)*0.16*(ph-0.5);   // flights arc a little, so a regroup reads as streaks
   P+=0.1*uDrift*vec3(sin(uTime*0.7+ph*40.0),sin(uTime*0.6+ph*70.0),sin(uTime*0.5+ph*90.0));
-  P=live(P);
+  P=live(P,aCen);
   vec4 clip=uVP*vec4(P,1.0); gl_Position=clip;
   float depth=max(clip.w,0.01), mag=aMisc.y, scaf=step(0.5,aMisc.w)*step(aMisc.w,1.5), haze=step(2.5,aMisc.w), dust=step(1.5,aMisc.w)*(1.0-haze);
   float size=uSize*(1.0+1.7*mag*uVary)*mix(1.0,0.62,max(scaf,dust))*pow((uPx/depth)/uK,0.42);
@@ -732,13 +790,13 @@ precision mediump float; in vec3 vCol; in float vHot; in float vHz; out vec4 o;
 void main(){ vec2 p=gl_PointCoord*2.0-1.0; float d2=dot(p,p); if(d2>1.0) discard;
   float q=d2/0.0576, core=1.0/(1.0+q*q*q);          // a crisp bead: flat top, steep edge. It stays sharp at any size.
   float halo=exp(-d2*5.0)*(1.0-d2)*0.11;
-  o=vec4(mix(vCol*(core*1.35+halo)+vec3(vHot)*core,vCol*exp(-d2*3.2)*(1.0-d2),vHz),1.0); }`, ["aFrom","aTo","aCol","aMisc","aBirth"]);
+  o=vec4(mix(vCol*(core*1.35+halo)+vec3(vHot)*core,vCol*exp(-d2*3.2)*(1.0-d2),vHz),1.0); }`, ["aFrom","aTo","aCol","aMisc","aBirth","aCen"]);
   pL = prog(`#version 300 es
 precision highp float;
-in vec3 aP; in vec4 aC; uniform mat4 uVP; uniform float uA, uDist, uFade; uniform vec3 uTint; out vec4 vC;
-`+LIVE+`void main(){ vec3 P=live(aP); vec4 clip=uVP*vec4(P,1.0); gl_Position=clip; float f=mix(1.0,clamp(1.7-0.95*clip.w/uDist,0.1,1.0),uFade);
+in vec3 aP; in vec4 aC; in vec4 aCen; uniform mat4 uVP; uniform float uA, uDist, uFade; uniform vec3 uTint; out vec4 vC;
+`+LIVE+`void main(){ vec3 P=live(aP,aCen); vec4 clip=uVP*vec4(P,1.0); gl_Position=clip; float f=mix(1.0,clamp(1.7-0.95*clip.w/uDist,0.1,1.0),uFade);
   vC=vec4(aC.rgb*uTint,aC.a*uA*f*(1.0+uAnat*uWave*3.0*signal(P))); }`, `#version 300 es
-precision mediump float; in vec4 vC; out vec4 o; void main(){ o=vec4(vC.rgb*vC.a,1.0); }`, ["aP","aC"]);
+precision mediump float; in vec4 vC; out vec4 o; void main(){ o=vec4(vC.rgb*vC.a,1.0); }`, ["aP","aC","aCen"]);
   const VF = `#version 300 es
 out vec2 vUv; void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); vUv=p; gl_Position=vec4(p*2.0-1.0,0.0,1.0); }`;
   pD = prog(VF, `#version 300 es
@@ -754,17 +812,20 @@ precision highp float; in vec2 vUv; uniform sampler2D uScene, uBloom; uniform fl
 void main(){ vec3 s=texture(uScene,vUv).rgb, b=texture(uBloom,vUv).rgb;
   vec3 c=(s+b*uGlow)*1.2*uExp; float l=max(c.r,max(c.g,c.b)), t=0.97*(1.0-exp(-l*0.95)); c=c*(t/max(l,1e-5)); c=mix(c,vec3(t),smoothstep(6.0,30.0,l)*0.45);
   c=pow(c,vec3(1.0/2.0)); c=max(c-0.02,0.0)*1.0204; o=vec4(c,1.0); }`);
-  const buf = () => gl.createBuffer(); bFrom = buf(); bTo = buf(); bCol = buf(); bMisc = buf(); bBirth = buf(); bLine = buf(); bNerve = buf(); bWeb = buf();
+  const buf = () => gl.createBuffer(); bFrom = buf(); bTo = buf(); bCol = buf(); bMisc = buf(); bBirth = buf(); bCen = buf(); bLine = buf(); bNerve = buf(); bWeb = buf();
   vaoP = gl.createVertexArray(); gl.bindVertexArray(vaoP);
-  [[bFrom,3],[bTo,3],[bCol,3],[bMisc,4],[bBirth,1]].forEach(([b, n], i) => { gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, n, gl.FLOAT, false, 0, 0); });
+  [[bFrom,3],[bTo,3],[bCol,3],[bMisc,4],[bBirth,1],[bCen,4]].forEach(([b, n], i) => { gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, n, gl.FLOAT, false, 0, 0); });
   vaoL = gl.createVertexArray(); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferData(gl.ARRAY_BUFFER, lineData.byteLength, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12);
+  gl.vertexAttrib4f(2, 0, 0, 0, 0);                         // lines built on the CPU each frame carry no body, so forces leave them alone
   const lineVao = (b, data, usage) => { const v = gl.createVertexArray(); gl.bindVertexArray(v); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, usage);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12); return v; };
-  vaoW = lineVao(bWeb, new Float32Array(7), gl.DYNAMIC_DRAW); bFrame = buf(); vaoFr = lineVao(bFrame, new Float32Array(7), gl.DYNAMIC_DRAW);
+  const bodyVao = b => { const v = gl.createVertexArray(); gl.bindVertexArray(v); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(11), gl.DYNAMIC_DRAW);
+    [[0, 3, 0], [1, 4, 12], [2, 4, 28]].forEach(([loc, n, off]) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 44, off); }); return v; };
+  vaoW = bodyVao(bWeb); bFrame = buf(); vaoFr = bodyVao(bFrame);
   vaoF = gl.createVertexArray(); gl.bindVertexArray(null);
 }
-function uploadAll(){ if(!gl) return; for(const [b, d] of [[bFrom,pFrom],[bTo,pTo],[bCol,pCol],[bMisc,pMisc],[bBirth,pBirth]]){ gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); } }
+function uploadAll(){ if(!gl) return; for(const [b, d] of [[bFrom,pFrom],[bTo,pTo],[bCol,pCol],[bMisc,pMisc],[bBirth,pBirth],[bCen,pCen]]){ gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); } }
 function uploadMisc(){ if(!gl) return; gl.bindBuffer(gl.ARRAY_BUFFER, bMisc); gl.bufferData(gl.ARRAY_BUFFER, pMisc, gl.DYNAMIC_DRAW); }
 function target(w, h){ const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
   if(HDR) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null); else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -801,16 +862,30 @@ function updateCam(dt){ const k = 1-Math.exp(-dt*6), ks = 1-Math.exp(-dt*3.4);
   for(let c=0;c<4;c++) for(let r=0;r<4;r++) VP[c*4+r] = proj[r]*viewM[c*4]+proj[4+r]*viewM[c*4+1]+proj[8+r]*viewM[c*4+2]+proj[12+r]*viewM[c*4+3]; }
 function project(x, y, z, o){ const w = VP[3]*x+VP[7]*y+VP[11]*z+VP[15]; if(w <= 0.05){ o[2] = -1; return o; } o[0] = ((VP[0]*x+VP[4]*y+VP[8]*z+VP[12])/w*0.5+0.5)*cssW; o[1] = (0.5-(VP[1]*x+VP[5]*y+VP[9]*z+VP[13])/w*0.5)*cssH; o[2] = w; return o; }
 const tp = [0,0,0], lv = [0,0,0]; let anatA = 1;
-function livePos(x, y, z, o){ o[0] = x; o[1] = y; o[2] = z; return o; }
+const SWMODE = {neuron:1, galaxy:2, orbit:1, globe:2, shell:1, nebula:2, block:0, body:0};      // 1 turns as one piece, 2 turns faster near the centre
+let liveT = 0, viewAxis = [0, 1, 0];
+function livePt(x, y, z, cx, cy, cz, cr, o){                // the same forces as live() in the shaders, for picking, labels and links
+  if(!(cr > 0)){ o[0] = x; o[1] = y; o[2] = z; return o; }
+  let dx = (x-cx)*S.spread, dy = (y-cy)*S.spread, dz = (z-cz)*S.spread; const r = Math.hypot(dx, dy, dz)/cr, b = 1+S.breathe*0.045*Math.sin(liveT*0.9-r*3.2), m = SWMODE[S.shape]; dx *= b; dy *= b; dz *= b;
+  if(m){ const th = S.swirl*liveT*(m > 1 ? 0.2/(0.3+r) : 0.14), c = Math.cos(th), sn = Math.sin(th), ax = viewAxis, dt = (ax[0]*dx+ax[1]*dy+ax[2]*dz)*(1-c);
+    const nx = dx*c+(ax[1]*dz-ax[2]*dy)*sn+ax[0]*dt, ny = dy*c+(ax[2]*dx-ax[0]*dz)*sn+ax[1]*dt, nz = dz*c+(ax[0]*dy-ax[1]*dx)*sn+ax[2]*dt; dx = nx; dy = ny; dz = nz; }
+  const k = 4/cr, tb = S.turb*cr*0.03, T2 = liveT;
+  o[0] = cx+dx+tb*(Math.sin(dy*k+T2*0.31)+0.5*Math.sin(dz*k*2.3-T2*0.23)); o[1] = cy+dy+tb*(Math.sin(dz*k+T2*0.27)+0.5*Math.sin(dx*k*2.3+T2*0.19)); o[2] = cz+dz+tb*(Math.sin(dx*k-T2*0.29)+0.5*Math.sin(dy*k*2.3+T2*0.21)); return o; }
+const livePos = (i, o) => livePt(pTo[i*3], pTo[i*3+1], pTo[i*3+2], pCen[i*4], pCen[i*4+1], pCen[i*4+2], pCen[i*4+3], o);
 const SC = {k:1, pos:0, th:1, n:0, t:0};                   // scan axis (0 = x, 1 = y), slice position and thickness in world units
 function updateScan(dt){ const x = disc(), half = x ? extent.w*0.92 : extent.h*0.95, c = x ? 0 : extent.cy; SC.k = x ? 0 : 1;
   if(S.sweep && !reduced && !down){ S.scanPos = (S.scanPos+dt*0.06) % 1; $("#sScanPos").value = S.scanPos; }
   SC.pos = x ? c-half+S.scanPos*2*half : c+half-S.scanPos*2*half; SC.th = Math.max(0.4, half*0.035*S.scanT); SC.t += dt;
-  if(SC.t > 0.25){ SC.t = 0; let n = 0; for(let i=0;i<NI;i++) if(pMisc[i*4] > 0.5 && Math.abs(pTo[i*3+SC.k]-SC.pos) < SC.th*1.5) n++; $("#bCount").textContent = "Slice "+Math.round(S.scanPos*100)+"% · "+fmt(n)+" items"; }
+  if(SC.t > 0.12){ SC.t = 0; const stride = Math.max(1, Math.ceil(SC.n/7000)); let n = 0, a = 1e9, b = -1e9; const cv = $("#sliceCv"), g2 = cv.getContext("2d"), Wc = cv.width, half2 = (x ? extent.h : extent.w)*0.62, u = x ? 2 : 0, v = x ? 1 : 2, vc = x ? extent.cy : 0;
+    g2.fillStyle = "#000"; g2.fillRect(0, 0, Wc, Wc); g2.strokeStyle = "rgba(235,235,245,.22)"; g2.lineWidth = 2; g2.beginPath(); g2.arc(Wc/2, Wc/2, Wc/2-6, 0, TAU); g2.stroke(); g2.fillStyle = "rgba(225,238,255,.9)";
+    for(let i=0;i<NI;i++){ if(pMisc[i*4] < 0.5 || Math.abs(pTo[i*3+SC.k]-SC.pos) > SC.th*1.5) continue; n++; const tm = iTm[i]; if(tm < a) a = tm; if(tm > b) b = tm;
+      if(n % stride === 0) g2.fillRect(Wc/2+pTo[i*3+u]/half2*(Wc/2-10)-1, Wc/2-(pTo[i*3+v]-vc)/half2*(Wc/2-10)-1, 2.4, 2.4); }      // the slice seen straight on, like one frame of a scan
+    const my = tm => MON[Math.floor(tm) % 12]+" "+(2021+Math.floor(tm/12)), when = n ? (my(a) === my(b) ? my(a) : my(a)+" to "+my(b)) : "empty";
+    SC.n = n; $("#bCount").textContent = "Slice "+Math.round(S.scanPos*100)+"% · "+fmt(n)+" items"; $("#sliceInfo").textContent = n ? fmt(n)+" items · "+when : "Nothing in this slice"; }
   if(lineVerts+8 <= MAXV){ const h = (x ? extent.h : extent.w)*0.85, p = SC.pos, c4 = x ? [[p,-h,-h],[p,h,-h],[p,h,h],[p,-h,h]] : [[-h,p,-h],[h,p,-h],[h,p,h],[-h,p,h]];      // the outline of the cutting plane
     for(let e=0;e<4;e++) for(const q of [c4[e], c4[(e+1) % 4]]){ const o = lineVerts*7; lineData[o] = q[0]; lineData[o+1] = q[1]+(x ? extent.cy : 0); lineData[o+2] = q[2]; lineData[o+3] = 0.8; lineData[o+4] = 0.9; lineData[o+5] = 1; lineData[o+6] = 0.3; lineVerts++; } } }
 function pick(mx, my, thr){ if(T < 1) return -1; let best = -1, bd = thr*thr;
-  for(let i=0;i<NI;i++){ if(pMisc[i*4] < 0.5) continue; const k = i*3; if(S.scan && Math.abs(pTo[k+SC.k]-SC.pos) > SC.th*1.5) continue; livePos(pTo[k], pTo[k+1], pTo[k+2], lv); project(lv[0], lv[1], lv[2], tp); if(tp[2] < 0) continue; const dx = tp[0]-mx; if(dx > thr || dx < -thr) continue; const dy = tp[1]-my, d = dx*dx+dy*dy+tp[2]*1e-3; if(d < bd){ bd = d; best = i; } }
+  for(let i=0;i<NI;i++){ if(pMisc[i*4] < 0.5) continue; const k = i*3; if(S.scan && Math.abs(pTo[k+SC.k]-SC.pos) > SC.th*1.5) continue; livePos(i, lv); project(lv[0], lv[1], lv[2], tp); if(tp[2] < 0) continue; const dx = tp[0]-mx; if(dx > thr || dx < -thr) continue; const dy = tp[1]-my, d = dx*dx+dy*dy+tp[2]*1e-3; if(d < bd){ bd = d; best = i; } }
   return best; }
 let hovered = -1, selected = -1, mouse = {x:0, y:0, in:false}, needPick = false;
 const ptrs = new Map(); let moved = 0, pinch = null;
@@ -836,8 +911,8 @@ function doPick(){ needPick = false; if(down || !mouse.in) return; const i = pic
   showTip(mouse.cx, mouse.cy, esc(title(i))+"<small>"+esc((iProj[i] < 0 ? "Unsorted" : PROJ[iProj[i]].name)+" · "+SOURCES[iSrc[i]][0]+" · "+dateOf(iTm[i]))+"</small>"); }
 function showTip(x, y, html){ const t = $("#tip"); t.innerHTML = html; t.hidden = false; t.style.transform = `translate(${Math.min(x+14, innerWidth-t.offsetWidth-8)}px,${Math.min(y+16, innerHeight-t.offsetHeight-8)}px)`; }
 function hideTip(){ $("#tip").hidden = true; }
-function buildLines(){ lineVerts = 0; const src = hovered >= 0 ? hovered : selected; if(src < 0 || !S.links || T < 1) return; const a = src*3, A = [pTo[a], pTo[a+1], pTo[a+2]], cA = fullCol(src);
-  for(const j of linksOf(src)){ const b = j*3, B = [pTo[b], pTo[b+1], pTo[b+2]], cB = fullCol(j), d = Math.hypot(B[0]-A[0], B[1]-A[1], B[2]-A[2]);
+function buildLines(){ lineVerts = 0; const src = hovered >= 0 ? hovered : selected; if(src < 0 || !S.links || T < 1) return; const A = livePos(src, [0,0,0]), cA = fullCol(src);
+  for(const j of linksOf(src)){ const B = livePos(j, [0,0,0]), cB = fullCol(j), d = Math.hypot(B[0]-A[0], B[1]-A[1], B[2]-A[2]);
     const M = [(A[0]+B[0])/2, (A[1]+B[1])/2+d*0.12, (A[2]+B[2])/2+d*0.18]; let px = A[0], py = A[1], pz = A[2];
     for(let s=1;s<=16;s++){ const t = s/16, u = 1-t, x = u*u*A[0]+2*u*t*M[0]+t*t*B[0], y = u*u*A[1]+2*u*t*M[1]+t*t*B[1], z = u*u*A[2]+2*u*t*M[2]+t*t*B[2]; if(lineVerts+2 > MAXV) return;
       for(const [qx, qy, qz, tt] of [[px, py, pz, (s-1)/16],[x, y, z, t]]){ const o = lineVerts*7; lineData[o] = qx; lineData[o+1] = qy; lineData[o+2] = qz; lineData[o+3] = cA[0]+(cB[0]-cA[0])*tt; lineData[o+4] = cA[1]+(cB[1]-cA[1])*tt; lineData[o+5] = cA[2]+(cB[2]-cA[2])*tt; lineData[o+6] = 0.75; lineVerts++; }
@@ -847,7 +922,7 @@ function buildLabels(){ const root = $("#labels"); root.innerHTML = ""; leadEls 
   labelEls = labels.map(l => { const d = document.createElement("div"); d.className = "lb "+l.c; d.textContent = l.t; root.append(d); let ld = null; if(l.lead){ ld = document.createElement("div"); ld.className = "ld"; root.append(ld); } leadEls.push(ld); l.w = 0; return d; }); }
 const tc = [0,0,0];
 function placeLabels(){ const show = S.labels && T >= 1, placed = [], H = 19;
-  for(let i=0;i<labels.length;i++){ const l = labels[i], e = labelEls[i], ld = leadEls[i]; project(l.p[0], l.p[1], l.p[2], tp);
+  for(let i=0;i<labels.length;i++){ const l = labels[i], e = labelEls[i], ld = leadEls[i]; if(l.cen){ livePt(l.p[0], l.p[1], l.p[2], l.cen[0], l.cen[1], l.cen[2], l.cen[3], lv); project(lv[0], lv[1], lv[2], tp); } else project(l.p[0], l.p[1], l.p[2], tp);
     if(!show || tp[2] < 0){ e.style.opacity = 0; if(ld) ld.style.opacity = 0; continue; }
     if(!l.w) l.w = e.offsetWidth || 60; const ax = tp[0], ay = tp[1]; let x, y = ay-H/2, fade = 1, dx = 1, dy = 0;
     if(l.lead){ project(l.lead[0], l.lead[1], l.lead[2], tc); dx = ax-tc[0]; dy = ay-tc[1]; const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n; if(Math.abs(dx) < 0.25){ dx = dx < 0 ? -0.25 : 0.25; }
@@ -858,27 +933,28 @@ function placeLabels(){ const show = S.labels && T >= 1, placed = [], H = 19;
       if(!hit) break; y = (dy < -0.15 || (tr & 1 && dy <= 0.15)) ? hit.y-H-4 : hit.y+H+4; }
     placed.push({x, y, w:l.w}); e.style.opacity = fade; e.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
     if(ld){ const ex = dx >= 0 ? x : x+l.w, ey = y+H/2, len = Math.hypot(ex-ax, ey-ay); ld.style.opacity = fade*0.55; ld.style.width = len.toFixed(1)+"px"; ld.style.transform = `translate(${ax.toFixed(1)}px,${ay.toFixed(1)}px) rotate(${Math.atan2(ey-ay, ex-ax).toFixed(3)}rad)`; } }
-  const ring = $("#ring"); if(selected >= 0 && T >= 1){ const k = selected*3; livePos(pTo[k], pTo[k+1], pTo[k+2], lv); project(lv[0], lv[1], lv[2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; } else ring.hidden = true; }
+  const ring = $("#ring"); if(selected >= 0 && T >= 1){ livePos(selected, lv); project(lv[0], lv[1], lv[2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; } else ring.hidden = true; }
 const DENS_S = Math.pow(18000/NI, 0.17), DENS_G = Math.pow(18000/NI, 0.6);      // more items: slightly smaller and dimmer each, so the picture keeps its balance
 let tPrev = performance.now(), scafA = 1, webA = 0, scanA = 0;
 const BLOOM_W = [0, 0.75, 0.5, 0.42];                     // tight bloom: each wider level adds less, so glow stays a halo and never a fog
-function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now-tPrev)/1000); tPrev = now; clock += dt; if(!gl || !resize()) return;
+function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now-tPrev)/1000); tPrev = now; if(!frozen) clock += dt; if(!gl || !resize()) return;
   const ease = 1-Math.exp(-dt*4), any = anyF(), settled = T >= 1;
   if(T < 1) T = Math.min(1, T+dt/1.4);
   scafA += ((S.scaf && CORE[S.shape] ? 1 : 0)-scafA)*ease; webA += ((S.links && settled && webPairs.length && !growing ? 1 : 0)-webA)*ease; frameA += ((S.links && settled ? 1 : 0)-frameA)*ease; thermA += ((S.colBy === "heat" ? 1 : 0)-thermA)*ease;
   if(growing){ growT += dt/GROW_SECS; const k = Math.min(S.count-1, Math.floor(clamp(growT, 0, 1)*S.count)); $("#bCount").textContent = dateOf(orderTm[k]).split(" ").slice(1).join(" ")+" · "+fmt(k+1)+" items"; if(growT >= 1.02) setGrow(false); }
   updateCam(dt); if(needPick) doPick(); buildLines(); if(S.scan) updateScan(dt); placeLabels(); scanA += ((S.scan ? 1 : 0)-scanA)*ease;
-  const time = reduced ? 0 : clock, wave = reduced ? 0 : S.pulse, tint = S.colBy === "heat" ? NEUTRAL : palMid();
+  liveT = reduced ? 0 : clock; const time = liveT, wave = reduced ? 0 : S.pulse, tint = S.colBy === "heat" ? NEUTRAL : palMid();
   gl.bindFramebuffer(gl.FRAMEBUFFER, scene.fbo); gl.viewport(0, 0, scene.w, scene.h); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
   gl.useProgram(pL.p); gl.uniformMatrix4fv(pL.u.uVP, false, VP); gl.uniform1f(pL.u.uTime, time); gl.uniform1f(pL.u.uAnat, anatA); gl.uniform1f(pL.u.uWave, wave); gl.uniform1f(pL.u.uDist, cam.dist);
-  gl.uniform1f(pL.u.uFade, flat() ? 0 : 1); gl.uniform3f(pL.u.uTint, tint[0], tint[1], tint[2]);
+  const force = u => { gl.uniform1f(u.uSwirl, S.swirl); gl.uniform1f(u.uTurb, S.turb); gl.uniform1f(u.uBreathe, S.breathe); gl.uniform1f(u.uSpread, S.spread); gl.uniform1f(u.uSwMode, reduced ? 0 : SWMODE[S.shape]); gl.uniform3f(u.uAxis, viewAxis[0], viewAxis[1], viewAxis[2]); };
+  force(pL.u); gl.uniform1f(pL.u.uFade, flat() ? 0 : 1); gl.uniform3f(pL.u.uTint, tint[0], tint[1], tint[2]);
   if(frameVerts && frameA > 0.01){ gl.uniform1f(pL.u.uA, frameA*S.threads*0.55*(any ? 0.5 : 1)*(1-0.7*scanA)*(growing ? clamp(growT*1.4, 0, 1) : 1)); gl.bindVertexArray(vaoFr); gl.drawArrays(gl.LINES, 0, frameVerts); }
   gl.uniform3f(pL.u.uTint, 1, 1, 1);
   if(webA > 0.01 && webPairs.length){ gl.uniform1f(pL.u.uA, webA*S.threads*(1-0.8*scanA)); gl.bindVertexArray(vaoW); gl.drawArrays(gl.LINES, 0, webPairs.length); }
   gl.uniform1f(pL.u.uFade, 0); gl.uniform1f(pL.u.uWave, 0);
   if(lineVerts){ gl.uniform1f(pL.u.uA, 1); gl.bindVertexArray(vaoL); gl.bindBuffer(gl.ARRAY_BUFFER, bLine); gl.bufferSubData(gl.ARRAY_BUFFER, 0, lineData.subarray(0, lineVerts*7)); gl.drawArrays(gl.LINES, 0, lineVerts); }
   gl.useProgram(pP.p); const U = pP.u; gl.uniformMatrix4fv(U.uVP, false, VP); gl.uniform1f(U.uT, T); gl.uniform1f(U.uTime, time); gl.uniform1f(U.uAnat, anatA); gl.uniform1f(U.uWave, wave); gl.uniform1f(U.uPx, scene.h/(2*Math.tan(FOV/2)));
-  gl.uniform1f(U.uSize, 4.3*S.size*pxr*DENS_S); gl.uniform1f(U.uK, 6*pxr); gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)*DENS_G/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust); gl.uniform1f(U.uHaze, (0.35+0.75*thermA)*S.haze); gl.uniform1f(U.uVary, S.vary); gl.uniform1f(U.uTw, S.tw); gl.uniform1f(U.uDepthF, S.depth); gl.uniform1f(U.uDrift, S.drift); gl.uniform1f(U.uGrow, growing ? growT : 2); gl.uniform1f(U.uScan, scanA); gl.uniform1f(U.uScanPos, SC.pos); gl.uniform1f(U.uScanT, SC.th); gl.uniform3f(U.uScanAx, SC.k === 0 ? 1 : 0, SC.k === 1 ? 1 : 0, 0);
+  gl.uniform1f(U.uSize, 4.3*S.size*pxr*DENS_S); gl.uniform1f(U.uK, 6*pxr); crowdNow += (crowdG-crowdNow)*0.08; gl.uniform1f(U.uGain, (HDR ? 0.31 : 0.2)*DENS_G*crowdNow/Math.pow(S.size, 1.7)); gl.uniform1f(U.uScaf, scafA); gl.uniform1f(U.uDist, cam.dist); gl.uniform1f(U.uDust, S.dust); gl.uniform1f(U.uHaze, (0.35+0.75*thermA)*S.haze); gl.uniform1f(U.uVary, S.vary); gl.uniform1f(U.uTw, S.tw); gl.uniform1f(U.uDepthF, S.depth); gl.uniform1f(U.uDrift, S.drift); force(U); gl.uniform1f(U.uGrow, growing ? growT : 2); gl.uniform1f(U.uScan, scanA); gl.uniform1f(U.uScanPos, SC.pos); gl.uniform1f(U.uScanT, SC.th); gl.uniform3f(U.uScanAx, SC.k === 0 ? 1 : 0, SC.k === 1 ? 1 : 0, 0);
   gl.bindVertexArray(vaoP); gl.drawArrays(gl.POINTS, 0, N);
   gl.bindVertexArray(vaoF); gl.disable(gl.BLEND); gl.useProgram(pD.p); gl.uniform1i(pD.u.uTex, 0); let src = scene;
   for(const m of mips){ gl.bindFramebuffer(gl.FRAMEBUFFER, m.fbo); gl.viewport(0, 0, m.w, m.h); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pD.u.uTexel, 1/src.w, 1/src.h); gl.uniform1f(pD.u.uThr, src === scene ? 0.22 : 0); gl.drawArrays(gl.TRIANGLES, 0, 3); src = m; }
@@ -990,14 +1066,17 @@ function syncForm(){
     return `<button data-pal="${k}" class="${k === S.pal ? "on" : ""}" style="background:${bg}" title="${PAL_NAMES[k]}" aria-label="${PAL_NAMES[k]}"></button>`; }).join("");
   $("#cA").value = S.custom[0]; $("#cB").value = S.custom[1];
   $$("input[data-s]").forEach(e => { e.value = S[e.dataset.s]; });
-  $$(".scanrow").forEach(e => { e.hidden = !S.scan; });
+  $$(".scanrow").forEach(e => { e.hidden = !S.scan; }); $("#slice").hidden = !S.scan;
   for(const [id, k] of [["tLabels","labels"],["tLinks","links"],["tScaf","scaf"],["tTurn","turn"],["tScan","scan"],["tSweep","sweep"]]) $("#"+id).setAttribute("aria-pressed", !!S[k]);
   document.documentElement.style.setProperty("--accent", S.colBy === "heat" ? "#ff9f0a" : S.pal === "spectrum" ? "#0a84ff" : css(palAt(0.45).map(v => Math.min(1, v*1.05))));
 }
 function saveLook(){ try{ const o = {ov:OV}; for(const k in LOOK) o[k] = S[k]; localStorage.setItem("sbos-look-1", JSON.stringify(o)); }catch(e){} }
 function loadLook(){ try{ const o = JSON.parse(localStorage.getItem("sbos-look-1") || "null"); if(!o) return; for(const k in LOOK) if(o[k] !== undefined && typeof o[k] === typeof LOOK[k]) S[k] = o[k]; if(!PAL_NAMES[S.pal]) S.pal = "aurora"; Object.assign(OV, o.ov || {}); }catch(e){} }
 function applyLook(){ syncForm(); recolour(); saveLook(); }
-function setView(shape, lay){ if(shape) S.shape = shape; if(lay) S.lay = lay; syncForm(); applyLayout(true); }
+let autoScan = false;
+function setView(shape, lay){ const was = S.shape === "body" && S.lay === "whole"; if(shape) S.shape = shape; if(lay) S.lay = lay; const is = S.shape === "body" && S.lay === "whole";
+  if(is && !was && !S.scan && S.count > 5000){ S.scan = true; S.sweep = true; autoScan = true; } else if(!is && autoScan){ S.scan = false; autoScan = false; }      // the Body opens with the scan running
+  syncForm(); applyLayout(true); if(!S.scan) filtersChanged(); }
 function setColBy(c){ S.colBy = c; if(c !== "heat") F.heat = null; applyLook(); filtersChanged(); }
 const setThermal = on => setColBy(on ? "heat" : "group");
 function setGrow(on){ growing = on; growT = on ? 0 : 2; $("#bGrow").textContent = on ? "Stop" : "Play growth"; $("#bGrow").classList.toggle("pri", on); if(!on) filtersChanged(); }
@@ -1051,7 +1130,7 @@ addEventListener("keydown", e => { if((e.metaKey || e.ctrlKey) && e.key.toLowerC
   if(view === "field" && !e.metaKey && !e.ctrlKey && !e.target.matches("input:not([type=range]), select, textarea")){ const k = e.key.toLowerCase(); if(k === "g") setGrow(!growing); else if(k === "h") setClean(!document.body.classList.contains("clean")); } });
 addEventListener("hashchange", () => go(location.hash.slice(1)));
 
-window.__os = { S, F, cam, OV, setCount, setGrow, setClean, get growing(){ return growing; }, setThermal, setColBy, setView, heat, PROJ, NI, N, go, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(pTo[i*3], pTo[i*3+1], pTo[i*3+2], [0,0,0]), zoomAt, title, pick, get insts(){ return insts.length; }, get lines(){ return frameVerts; } };
+window.__os = { S, F, cam, OV, setCount, setGrow, setClean, get growing(){ return growing; }, setThermal, setColBy, setView, heat, PROJ, NI, N, go, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(i, [0,0,0]), get crowd(){ return crowdG; }, shownI:i => shown(i), set freeze(v){ frozen = v; }, zoomAt, title, pick, get insts(){ return insts.length; }, get lines(){ return frameVerts; } };
 if(gl){ initGL(); bindInput(); } else $("#stage").innerHTML = '<p style="padding:24px;color:var(--ink-3)">The Field needs WebGL2. The other pages still work.</p>';
 loadLook(); syncForm(); countRead(); $("#sCount").value = 1;
 applyLayout(false); filtersChanged(); renderInbox(); renderNow();

@@ -5,17 +5,19 @@ unit. Units gather into topic clusters that behave like small galaxies; linked
 topics are joined by streaming filaments; unfiled fragments drift in a sparse
 outer halo.
 
-![v5 nervous-system layout](screenshots/v5-01-nervous-system.png)
+![Body shape with the scan running](screenshots/os-28-body-scan.png)
 
 ## Dashboard mockup
 
 `second-brain-os.html` is a clickable mockup of the whole system on generated example data (80,000 items). Open it in a browser; the Field needs WebGL2.
 
 - **Now**: open sessions and one card per project (waiting on you, running, stalled, done).
-- **Field**: every item is a speck. Pick a **shape** (Neuron, Galaxy, Orbit, Globe, Shell, Nebula, Block) and a **layout** (Whole, Groups, Table); every shape works in every layout. Group by area, project, source, type, status or year.
+- **Field**: every item is a speck. Pick a **shape** (Neuron, Galaxy, Orbit, Globe, Shell, Nebula, Body, Block) and a **layout** (Whole, Groups, Table); every shape works in every layout. Group by area, project, source, type, status or year.
+- **Body**: a nervous system. The newest 40% of the record is the brain (one region per group, plus cerebellum and brainstem); older items run down the spine and out along the nerves, one vertebra per stretch of time, oldest at the bottom. A nerve is drawn only once it holds something.
 - **Colour**: palettes (Aurora, Ember, Orchid, Glacier, Starlight, Spectrum), a custom two-colour palette, a colour of your own for any group from the legend, and a Heat mode. The look is remembered in the browser.
 - **Record size**: shrink the record from 80,000 items down to 100 to see how it looks when you are starting out. **Play growth** (`G`) adds the items in date order, and `H` hides the interface for recording.
-- **Scan**: a slice that sweeps through the picture and lights only the items inside it.
+- **Scan**: a slice that sweeps through the picture and lights only the items inside it. A slice viewer shows that slice straight on, with its item count and date range. The whole Body opens with the scan running.
+- **Forces**: swirl, turbulence, breathe and spread act on each body about its own centre, plus drift and pulses. Hover, labels and links follow the moving items. Tightly packed views are dimmed automatically so they do not burn out.
 - **Controls**: drag to move, right-drag (or Shift-drag) to rotate, scroll to zoom to the cursor, `R` to stop or start rotation, click a speck to open it. On touch: one finger moves, two fingers zoom and rotate.
 - **Timeline**, **Projects**, **Inbox**, **Sources**, and search with `⌘K`.
 
