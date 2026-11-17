@@ -513,3 +513,38 @@ The first Body was built from formulas (a dome brain, hoop ribs, drooping stubs 
 
 Checked: Whole, Groups and Table render on desktop and phone, and the full click-through flows pass.
 
+### Follow-up: pick to isolate, chips, To AI, suggested links
+
+Four interaction features, and a user audit of them.
+
+- **Pick to isolate.** A click picks an item instead of opening it. Unrelated items drop to 4% brightness, picked items burn at 3.4× and connected ones at 2.4×, and rotation pauses while anything is picked. Dimmed items can still be clicked, so a selection can grow.
+- **Chips.** Up to eight picked items show as chips beside the count; each can be removed, and Clear or Esc removes all. Filters come back when the selection is cleared.
+- **To AI.** The toolbar on the last pick has Open, To AI, Zoom and remove. To AI fills an Ask tray with the picked items. Where the page runs as a Claude artifact, Ask sends titles, summaries and links to Claude on the viewer's account and streams the answer; elsewhere only Copy prompt is offered.
+- **Suggested links.** Dashed lines to items that are not linked but probably related. In the mockup the rule is: same area, another project, written within about ten weeks. The item page lists them under "Might be related" and says how they were chosen.
+
+Checked in a headless browser:
+
+| Check | Result |
+|---|---|
+| Pick, second pick, remove a chip, Esc | Counts read "1 picked · 4 connected", "2 picked · 9 connected", back to "80,000 items" |
+| Toolbar Open, Zoom, remove | Pass; Zoom moves the camera from 222 to 34 and the toolbar stays on the item |
+| Suggested links toggle | Line count drops and returns |
+| Pick with a legend filter active, then Esc | Filter count restored |
+| Sunflower, Block groups, Globe table | Pick works in each |
+| Ask with a stand-in model | Shows "Thinking…", streams, shows the answer; prompt contains the item title |
+| Ask when rate limited / declined | Message shown and button kept / button hidden and copy offered |
+| Phone: tap, toolbar, tray, item sheet | Pass, no horizontal overflow |
+| Full regression flows | Pass |
+
+Found and fixed during the audit:
+
+- **Links ran off screen at small record sizes.** With the record shrunk (440 items), an item's links still pointed at items that are not in the record yet, whose positions are stale. Links now only go to items in the record. At 440 items the longest link is 17 units inside a body 28 units tall, and no link ends on a hidden item.
+- With a selection active, nothing else could be clicked, because dimmed items were not pickable.
+- The toolbar jittered with every small drift of its item. It now rests until the item moves more than 46 px.
+- Only the last picked item had a ring. Every picked item has one now.
+- The shape's own thread lines competed with the link lines; they dim to 16% while anything is picked.
+
+Not checked: a real call to Claude from the published page. That needs a signed-in viewer to press Ask and accept the consent prompt.
+
+Still rough: suggested links come from a rule, not from what the items say. On a phone the toolbar can cover a nearby label. In the densest areas a click can land on a neighbour of the item you meant.
+

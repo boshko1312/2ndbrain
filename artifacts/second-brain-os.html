@@ -102,6 +102,25 @@ body.at-timeline #stage{display:block;left:54%;border-left:.5px solid var(--sep)
 .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 12px;border-radius:999px;font-size:12.5px;background:color-mix(in srgb,var(--accent) 22%,rgba(44,44,46,.8));color:var(--ink)}
 .chip button{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.18);font-size:13px;line-height:1}
 .chip button:hover{background:rgba(255,255,255,.3)}
+#rings i{position:absolute;left:0;top:0;width:16px;height:16px;margin:-8px 0 0 -8px;border:1.5px solid rgba(255,255,255,.7);border-radius:50%;pointer-events:none;will-change:transform}
+#rings{pointer-events:none}
+#selBar{position:absolute;left:0;top:0;z-index:6;display:flex;align-items:center;gap:2px;padding:4px;border-radius:12px;white-space:nowrap;will-change:transform;font-size:12.5px}
+#selBar .st{max-width:200px;overflow:hidden;text-overflow:ellipsis;padding:0 8px;color:var(--ink);font-weight:600}
+#selBar button{padding:5px 9px;border-radius:8px;color:var(--ink-2);font-size:12.5px}
+#selBar button:hover{background:var(--fill)}
+#selBar button.pri{color:var(--accent);font-weight:600}
+.chip.sel{background:rgba(255,255,255,.16)}
+#bChips .link{pointer-events:auto;margin:0 4px}
+#ask{position:absolute;left:272px;bottom:14px;width:clamp(290px,calc(100% - 602px),440px);padding:12px 14px 12px;border-radius:16px;z-index:8}
+.askHd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.askHd .ic{width:24px;height:24px;border-radius:50%;background:var(--fill);color:var(--ink-2);font-size:15px}
+#askCtx{display:flex;flex-wrap:wrap;gap:5px;max-height:70px;overflow:auto;margin-bottom:8px}
+#askQ{display:block;width:100%;resize:none;border:0;border-radius:10px;background:var(--fill2);color:var(--ink);font:14px var(--text);padding:8px 10px}
+#askQ::placeholder{color:var(--ink-3)}
+.askBtns{display:flex;gap:8px;margin-top:8px}
+#askOut{margin-top:10px;max-height:170px;overflow:auto;white-space:pre-wrap;font-size:13.5px;line-height:1.45;color:var(--ink);background:var(--fill2);border-radius:10px;padding:9px 11px}
+#ask .foot{margin:8px 0 0}
+body.clean #ask,body.clean #selBar{display:none!important}
 #bHint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(600px,calc(100% - 640px));text-align:center;font-size:12px;color:var(--ink-3);pointer-events:none}
 #legend{position:absolute;left:16px;bottom:14px;width:240px;max-height:42%;overflow:auto;padding:10px 6px 6px;border-radius:14px}
 #legend .cap{padding:0 10px 6px;display:flex;justify-content:space-between}
@@ -257,6 +276,8 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
   #vp.open{display:block}
   #vpBtn{display:inline-flex}
   #legend{left:var(--gl);right:var(--gr);width:auto;max-height:118px;bottom:10px}
+  #ask{left:var(--gl);right:var(--gr);width:auto;bottom:138px}
+  #selBar .st{max-width:120px}
   #bHint,#slice{display:none!important}
   .prow{grid-template-columns:minmax(0,1fr) auto}
   .prow .hide-s{display:none}
@@ -283,7 +304,7 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
   </nav>
 
   <main id="main">
-    <div id="stage"><canvas id="gl"></canvas><div id="labels"></div><div id="ring" hidden></div></div>
+    <div id="stage"><canvas id="gl"></canvas><div id="labels"></div><div id="rings"><i hidden></i><i hidden></i><i hidden></i><i hidden></i><i hidden></i><i hidden></i><i hidden></i><i hidden></i></div><div id="ring" hidden></div><div id="selBar" class="mat" hidden></div></div>
 
     <section class="view" id="v-now"></section>
 
@@ -323,6 +344,7 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
         <div class="il">
           <div class="ir"><span>Labels</span><button class="tg" id="tLabels" aria-pressed="true" aria-label="Labels"></button></div>
           <div class="ir"><span>Threads and links</span><button class="tg" id="tLinks" aria-pressed="true" aria-label="Threads and links"></button></div>
+          <div class="ir"><span>Suggested links</span><button class="tg" id="tSugg" aria-pressed="true" aria-label="Suggested links"></button></div>
           <div class="ir"><span>Glowing cores</span><button class="tg" id="tScaf" aria-pressed="true" aria-label="Glowing cores"></button></div>
           <div class="ir"><span>Rotation<span class="kbd">R</span></span><button class="tg" id="tTurn" aria-pressed="true" aria-label="Rotation"></button></div>
           <div class="ir"><span>Scan</span><button class="tg" id="tScan" aria-pressed="false" aria-label="Scan"></button></div>
@@ -356,6 +378,14 @@ body.clean #app{grid-template-columns:minmax(0,1fr)}
         <div class="btnrow" style="grid-template-columns:1fr"><button class="btn" id="bClear">Clear filters</button></div>
       </div>
       <div id="slice" class="mat" hidden><div class="cap">Slice</div><canvas id="sliceCv" width="328" height="328"></canvas><div id="sliceInfo"></div></div>
+      <div id="ask" class="mat" hidden>
+        <div class="askHd"><span class="cap">Ask about these</span><button class="ic" data-ask-act="close" aria-label="Close and empty the question">×</button></div>
+        <div id="askCtx"></div>
+        <textarea id="askQ" rows="2" aria-label="Your question" placeholder="What connects these, and what should I do next?"></textarea>
+        <div class="askBtns"><button class="btn pri" id="askGo" data-ask-act="go" hidden>Ask Claude</button><button class="btn" id="askStop" data-ask-act="stop" hidden>Stop</button><button class="btn" data-ask-act="copy">Copy prompt</button></div>
+        <div id="askOut" hidden></div>
+        <p class="foot" id="askNote"></p>
+      </div>
       <div id="legend" class="mat"></div>
       <div id="bHint"></div>
     </section>
@@ -451,6 +481,13 @@ function linksOf(i){ const out = [], p = iProj[i], k = 2+hash(i+5) % 3;
     if(p >= 0 && (h & 7) === 0){ const same = []; PROJ.forEach((x, xi) => { if(x.area === PROJ[p].area && xi !== p) same.push(xi); }); if(same.length) q = same[(h>>>5) % same.length]; }
     const u = q < 0 ? UNS_START+(h>>>3) % N_UNS : PROJ[q].start+(h>>>3) % PROJ[q].n; if(u !== i && !out.includes(u)) out.push(u); }
   return out; }
+const sugCache = new Map();
+function suggestOf(i){ let out = sugCache.get(i); if(out) return out; out = [];      // items that are not linked yet but probably belong together. A simple rule stands in for a model here: same area, another project, written within a few weeks.
+  const p = iProj[i], ls = linksOf(i), cand = []; if(p >= 0) PROJ.forEach((x, xi) => { if(x.area === PROJ[p].area && xi !== p && x.n) cand.push(xi); });
+  for(let c=0;c<cand.length && out.length<2;c++){ const q = cand[(hash(i*13+c*101) >>> 2) % cand.length], Q = PROJ[q]; let best = -1, bd = 1e9;
+    for(let k=0;k<14;k++){ const u = Q.start+(hash(i*17+k*59+q) >>> 1) % Q.n, d = Math.abs(iTm[u]-iTm[i]); if(d < bd && RANK[u] < S.count){ bd = d; best = u; } }
+    if(best >= 0 && bd < 2.5 && best !== i && !ls.includes(best) && !out.includes(best)) out.push(best); }
+  if(sugCache.size > 600) sugCache.clear(); sugCache.set(i, out); return out; }
 function excerpt(i){ const p = iProj[i], t = (p < 0 ? UNS_TOPICS : PROJ[p].topics)[hash(i*7919+13) % (p < 0 ? UNS_TOPICS : PROJ[p].topics).length], n = 6+hash(i) % 40;
   return ["You asked about "+t+". The assistant proposed an approach, you pushed back on one part, and the thread ended with a plan. "+n+" messages.",
     "You settled "+t+" after comparing the options. The reasoning stays attached to the conversation it came from.",
@@ -485,7 +522,7 @@ function computeHeat(){ const age = i => NOW_TM-iTm[i];
   else { const ph = new Float32Array(NP+1); let mx = 0; for(let i=0;i<NI;i++) ph[iProj[i]+1] += Math.exp(-age(i)/1.5); const ord = [...ph.keys()].sort((a, b) => ph[a]-ph[b]), rank = new Float32Array(NP+1); ord.forEach((p, j) => rank[p] = j/NP); void mx;      // rank the projects so they spread over the whole ramp
     for(let i=0;i<NI;i++) heat[i] = clamp(0.62*rank[iProj[i]+1]+0.38*Math.exp(-age(i)/9), 0, 1); } }
 const LOOK = { pal:"aurora", custom:["#19ff8c","#35c8ff"], size:1, vary:1, expo:1, glow:0.6, haze:1, dust:1, tw:1, threads:1, depth:1, drift:1, pulse:1, swirl:0.35, turb:0.3, breathe:0.3, spread:1 };
-const S = Object.assign({ shape:"neuron", lay:"whole", by:"area", labels:true, links:true, scaf:true, turn:!reduced, across:"year", colBy:"group", colProp:"same", heat:"activity", scan:false, scanPos:0.25, scanT:1, sweep:true, count:NI }, JSON.parse(JSON.stringify(LOOK)));
+const S = Object.assign({ shape:"neuron", lay:"whole", by:"area", labels:true, links:true, scaf:true, turn:!reduced, across:"year", sugg:true, colBy:"group", colProp:"same", heat:"activity", scan:false, scanPos:0.25, scanT:1, sweep:true, count:NI }, JSON.parse(JSON.stringify(LOOK)));
 const F = { group:null, project:null, range:null, heat:null };       // filters: {by,val} | project index | [m0,m1]
 const match = i => (!F.group || GROUPS[F.group.by].of(i) === F.group.val) && (F.project === null || iProj[i] === F.project) && (!F.range || (iTm[i] >= F.range[0] && iTm[i] < F.range[1])) && (F.heat === null || band(heat[i]) === F.heat);
 const anyF = () => !!(F.group || F.project !== null || F.range || F.heat !== null);
@@ -511,6 +548,7 @@ let labels = [], extent = {w:74, h:72, cy:0}, insts = [];
 let flBuf = [];                                           // thread and frame lines for the current view
 const Z4 = [0, 0, 0, 0], fl = (x1, y1, z1, x2, y2, z2, c, a, C = Z4) => flBuf.push(x1, y1, z1, c[0], c[1], c[2], a, C[0], C[1], C[2], C[3], x2, y2, z2, c[0], c[1], c[2], a, C[0], C[1], C[2], C[3]);
 const WHITE = [1, 1, 1], NEUTRAL = [0.62, 0.72, 0.78], hr = n => (hash(n) & 0xffff)/65535;
+const linked = i => linksOf(i).filter(j => RANK[j] < S.count);      // an item's links, leaving out items that are not in the record at its current size
 const shown = i => RANK[i] < S.count;                     // is this item part of the record at its current size?
 const colKey = () => S.colProp !== "same" && GROUPS[S.colProp] ? S.colProp : S.shape === "body" && S.lay === "table" && GROUPS[S.across] ? S.across : S.by;      // what colour stands for: the grouping, unless another property is chosen
 function groupStats(key){ const g = GROUPS[key || S.by], n = g.meta.length, cnt = new Int32Array(n); for(let i=0;i<NI;i++) if(RANK[i] < S.count) cnt[g.of(i)]++; return cnt; }
@@ -775,16 +813,18 @@ function colourize(){ const g = GROUPS[colKey()];
 const uploadCol = () => { if(gl){ gl.bindBuffer(gl.ARRAY_BUFFER, bCol); gl.bufferData(gl.ARRAY_BUFFER, pCol, gl.DYNAMIC_DRAW); } };
 const fullCol = i => [pCol[i*3], pCol[i*3+1], pCol[i*3+2]];
 function recolour(){ colourize(); fillWeb(); uploadCol(); renderLegend(); }
-function relit(){ const any = anyF(); let n = 0;
-  for(let i=0;i<NI;i++){ const m = RANK[i] < S.count && (!any || match(i)); pMisc[i*4] = m ? 1 : 0.085; if(m) n++; }
-  for(let i=NI;i<DB;i++) pMisc[i*4] = any ? 0.35 : 1; for(let d=0;d<ND;d++) pMisc[(DB+d)*4] = pMisc[(d % NI)*4]; for(let h=0;h<NH;h++) pMisc[(HB+h)*4] = pMisc[hPar[h]*4]; fillWeb(); return n; }
+function relit(){ const any = anyF(); let n = 0, lit = null;
+  if(SEL.length){ lit = new Set(SEL); for(const q of SEL){ for(const j of linked(q)) lit.add(j); if(S.sugg) for(const j of suggestOf(q)) lit.add(j); } }      // a selection lights only itself and what it connects to
+  for(let i=0;i<NI;i++){ const m = RANK[i] < S.count && (lit ? lit.has(i) : (!any || match(i))); pMisc[i*4] = m ? (lit ? (SEL.includes(i) ? 3.4 : 2.4) : 1) : lit ? 0.04 : 0.085; if(m) n++; }      // picked and connected items burn brighter so they stand out of the dimmed field
+  for(let i=NI;i<DB;i++) pMisc[i*4] = lit ? 0.2 : any ? 0.35 : 1; for(let d=0;d<ND;d++) pMisc[(DB+d)*4] = pMisc[(d % NI)*4]; for(let h=0;h<NH;h++) pMisc[(HB+h)*4] = pMisc[hPar[h]*4]; fillWeb(); return n; }
+const SEL = [], ASK = [], SB = {x:0, y:0, i:-1, up:true, go:false};                                // picked items, and the items handed to the Ask tray
 let crowdG = 1, crowdNow = 1, frozen = false;
 function crowd(){ const G = 96, half = Math.max(extent.h, extent.w*0.62) || 1, cy = extent.cy || 0, bins = new Uint16Array(G*G), up = DISC[S.shape] && S.lay === "whole" ? 2 : 1;      // how tightly the picture is packed: items per small square of the fitted view
   for(let i=0;i<NI;i++){ if(RANK[i] >= S.count) continue; const x = Math.floor((pTo[i*3]/half*0.5+0.5)*G), y = Math.floor(((pTo[i*3+up]-(up === 1 ? cy : 0))/half*0.5+0.5)*G); if(x >= 0 && x < G && y >= 0 && y < G) bins[y*G+x]++; }
   const v = Array.from(bins).filter(c => c).sort((a, b) => a-b); const d = v.length ? v[Math.floor(v.length*0.85)] : 0; return clamp(Math.pow(130/Math.max(1, d), 0.75), 0.3, 1); }      // tightly packed pictures are drawn dimmer so they do not burn out
 function applyLayout(animate){
   for(let i=0;i<N;i++){ const w = wOf(i), k = i*3; pFrom[k] += (pTo[k]-pFrom[k])*w; pFrom[k+1] += (pTo[k+1]-pFrom[k+1])*w; pFrom[k+2] += (pTo[k+2]-pFrom[k+2])*w; }
-  flBuf = []; frameA = 0; pCen.fill(0); buildView();
+  flBuf = []; frameA = 0; pCen.fill(0); sugCache.clear(); buildView();
   frameVerts = flBuf.length/11; if(gl && bFrame){ gl.bindBuffer(gl.ARRAY_BUFFER, bFrame); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flBuf.length ? flBuf : 11), gl.DYNAMIC_DRAW); }
   const core = CORE[S.shape];                              // a glowing core at the heart of every body
   for(let q=0;q<NS;q++){ const k = (NI+q)*3; if(!core || !insts.length){ pTo[k] = pTo[k+1] = pTo[k+2] = 0; continue; } const it = insts[q % insts.length], r = it.r*core, c4 = (NI+q)*4; pTo[k] = it.cx+gauss()*r; pTo[k+1] = it.cy+gauss()*r; pTo[k+2] = it.cz+gauss()*r; pCen[c4] = it.cx; pCen[c4+1] = it.cy; pCen[c4+2] = it.cz; pCen[c4+3] = it.r; }
@@ -795,7 +835,7 @@ function applyLayout(animate){
   buildWeb(); colourize(); fillWeb(); if(!animate || reduced) pFrom.set(pTo); T = animate && !reduced ? 0 : 1; uploadAll(); buildLabels(); renderLegend(); homeCam(false); crowdG = crowd();
   $("#formNote").textContent = SHAPES.find(x => x[0] === S.shape)[2]+" "+(S.shape === "sunflower" && S.lay === "whole" ? "Whole: one head for the whole record, with a ring for each year. Colour shows the group." : (S.shape === "body" ? BODY_LAYS : LAYS)[S.lay]);
   $("#forceNote").textContent = S.shape === "block" ? "Forces do not move flat blocks." : S.shape === "body" ? "The Body does not swirl. The other forces still apply." : "Each body moves about its own centre.";
-  $("#bHint").textContent = "Drag to move · right-drag to rotate · scroll to zoom · R rotation · G growth · H hide interface";
+  $("#bHint").textContent = "Click an item to pick it · drag to move · right-drag to rotate · scroll to zoom · R rotation · G growth · H hide";
 }
 
 /* ------------------------------------------------------------ 3. RENDERER */
@@ -807,7 +847,7 @@ function prog(vs, fs, attrs){ const p = gl.createProgram(); gl.attachShader(p, s
 let frameVerts = 0, frameA = 0, thermA = 0, bFrame = null, vaoFr = null;
 let bCen = null, bBirth = null, growing = false, growT = 2; const GROW_SECS = 14;
 let pP, pL, pD, pU, pC, vaoP, vaoL, vaoF, vaoN, vaoW, bFrom, bTo, bCol, bMisc, bLine, bNerve, bWeb = null;
-const MAXV = 8*16*2, lineData = new Float32Array(MAXV*7); let lineVerts = 0;
+const MAXV = 2400, lineData = new Float32Array(MAXV*7); let lineVerts = 0;
 function initGL(){
   const LIVE = `uniform float uTime, uAnat, uWave, uSwirl, uTurb, uBreathe, uSpread, uSwMode; uniform vec3 uAxis;
 vec3 live(vec3 P, vec4 C){                            // forces, all relative to the sprite's own body
@@ -910,7 +950,7 @@ function homeCam(keepAngle){ const Wd = cssW || 1200, H = cssH || 800; let d = 1
   cam.gDist = d; cam.home = d; cam.gTg = [0, extent.cy, 0]; if(!keepAngle){ cam.gPitch = flat() ? 0 : disc() ? 0.96 : 0.12; if(flat()) cam.gYaw = Math.round(cam.gYaw/TAU)*TAU; else if(S.shape === "shell") cam.gYaw = Math.round(cam.gYaw/TAU)*TAU+0.3; } }
 let down = false, clock = 0;
 function updateCam(dt){ const k = 1-Math.exp(-dt*6), ks = 1-Math.exp(-dt*3.4);
-  if(!down && S.turn && !reduced && !flat() && cam.gDist > cam.home*0.6) cam.gYaw += dt*0.06;
+  if(!down && S.turn && !SEL.length && !reduced && !flat() && cam.gDist > cam.home*0.6) cam.gYaw += dt*0.06;
   cam.gPitch = clamp(cam.gPitch, -1.4, 1.4); cam.gDist = clamp(cam.gDist, 5, 900);
   cam.yaw += (cam.gYaw-cam.yaw)*k; cam.pitch += (cam.gPitch-cam.pitch)*k; cam.dist += (cam.gDist-cam.dist)*ks; for(let i=0;i<3;i++) cam.tg[i] += (cam.gTg[i]-cam.tg[i])*ks;
   const cp = Math.cos(cam.pitch), e = [cam.tg[0]+cam.dist*cp*Math.sin(cam.yaw), cam.tg[1]+cam.dist*Math.sin(cam.pitch), cam.tg[2]+cam.dist*cp*Math.cos(cam.yaw)];
@@ -943,7 +983,8 @@ function updateScan(dt){ const x = disc(), half = x ? extent.w*0.92 : extent.h*0
   if(lineVerts+8 <= MAXV){ const h = (x ? extent.h : extent.w)*0.85, p = SC.pos, c4 = x ? [[p,-h,-h],[p,h,-h],[p,h,h],[p,-h,h]] : [[-h,p,-h],[h,p,-h],[h,p,h],[-h,p,h]];      // the outline of the cutting plane
     for(let e=0;e<4;e++) for(const q of [c4[e], c4[(e+1) % 4]]){ const o = lineVerts*7; lineData[o] = q[0]; lineData[o+1] = q[1]+(x ? extent.cy : 0); lineData[o+2] = q[2]; lineData[o+3] = 0.8; lineData[o+4] = 0.9; lineData[o+5] = 1; lineData[o+6] = 0.3; lineVerts++; } } }
 function pick(mx, my, thr){ if(T < 1) return -1; let best = -1, bd = thr*thr;
-  for(let i=0;i<NI;i++){ if(pMisc[i*4] < 0.5) continue; const k = i*3; if(S.scan && Math.abs(pTo[k+SC.k]-SC.pos) > SC.th*1.5) continue; livePos(i, lv); project(lv[0], lv[1], lv[2], tp); if(tp[2] < 0) continue; const dx = tp[0]-mx; if(dx > thr || dx < -thr) continue; const dy = tp[1]-my, d = dx*dx+dy*dy+tp[2]*1e-3; if(d < bd){ bd = d; best = i; } }
+  const any = SEL.length > 0;                              // with a selection, dimmed items can still be picked, so you can add to it or move on
+  for(let i=0;i<NI;i++){ const dim = pMisc[i*4] < 0.5; if(dim && !(any && RANK[i] < S.count)) continue; const k = i*3; if(S.scan && Math.abs(pTo[k+SC.k]-SC.pos) > SC.th*1.5) continue; livePos(i, lv); project(lv[0], lv[1], lv[2], tp); if(tp[2] < 0) continue; const dx = tp[0]-mx; if(dx > thr || dx < -thr) continue; const dy = tp[1]-my, d = dx*dx+dy*dy+tp[2]*1e-3+(dim ? 30 : 0); if(d < bd){ bd = d; best = i; } }
   return best; }
 let hovered = -1, selected = -1, mouse = {x:0, y:0, in:false}, needPick = false;
 const ptrs = new Map(); let moved = 0, pinch = null;
@@ -955,7 +996,7 @@ function bindInput(){
     if(ptrs.size === 1){ if(p.b === 2 || p.sh){ cam.gYaw -= dx*0.005; cam.gPitch += dy*0.005; } else panBy(dx, dy); }      // left-drag moves, right-drag (or Shift-drag) rotates
     else if(ptrs.size === 2){ const [a, b] = [...ptrs.values()], d = Math.hypot(a.x-b.x, a.y-b.y), cx = (a.x+b.x)/2, cy = (a.y+b.y)/2; if(pinch){ const r = canvas.getBoundingClientRect(); zoomAt(cx-r.left, cy-r.top, pinch.d/Math.max(1, d)); cam.gYaw -= (cx-pinch.cx)*0.006; cam.gPitch += (cy-pinch.cy)*0.006; } pinch = {d, cx, cy}; } });
   const end = e => { const p = ptrs.get(e.pointerId); if(!p) return; ptrs.delete(e.pointerId); pinch = null; if(ptrs.size) return; down = false; canvas.classList.remove("drag");
-    if(moved < 6 && e.type === "pointerup" && p.b === 0){ const r = canvas.getBoundingClientRect(), i = pick(e.clientX-r.left, e.clientY-r.top, e.pointerType === "mouse" ? 11 : 22); if(i >= 0) openItem(i); else { selected = -1; closeDrawer(); } } };
+    if(moved < 6 && e.type === "pointerup" && p.b === 0){ const r = canvas.getBoundingClientRect(), i = pick(e.clientX-r.left, e.clientY-r.top, e.pointerType === "mouse" ? 11 : 22); if(i >= 0) toggleSel(i); else { if(SEL.length) setSel([]); closeDrawer(); } } };
   canvas.addEventListener("pointerup", end); canvas.addEventListener("pointercancel", end);
   canvas.addEventListener("pointerleave", () => { mouse.in = false; hovered = -1; hideTip(); canvas.classList.remove("hot"); });
   canvas.addEventListener("wheel", e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); zoomAt(e.clientX-r.left, e.clientY-r.top, Math.exp(clamp(e.deltaMode === 1 ? e.deltaY*32 : e.deltaY, -240, 240)*0.0016)); }, {passive:false});
@@ -969,12 +1010,14 @@ function doPick(){ needPick = false; if(down || !mouse.in) return; const i = pic
   showTip(mouse.cx, mouse.cy, esc(title(i))+"<small>"+esc((iProj[i] < 0 ? "Unsorted" : PROJ[iProj[i]].name)+" · "+SOURCES[iSrc[i]][0]+" · "+dateOf(iTm[i]))+"</small>"); }
 function showTip(x, y, html){ const t = $("#tip"); t.innerHTML = html; t.hidden = false; t.style.transform = `translate(${Math.min(x+14, innerWidth-t.offsetWidth-8)}px,${Math.min(y+16, innerHeight-t.offsetHeight-8)}px)`; }
 function hideTip(){ $("#tip").hidden = true; }
-function buildLines(){ lineVerts = 0; const src = hovered >= 0 ? hovered : selected; if(src < 0 || !S.links || T < 1) return; const A = livePos(src, [0,0,0]), cA = fullCol(src);
-  for(const j of linksOf(src)){ const B = livePos(j, [0,0,0]), cB = fullCol(j), d = Math.hypot(B[0]-A[0], B[1]-A[1], B[2]-A[2]);
-    const M = [(A[0]+B[0])/2, (A[1]+B[1])/2+d*0.12, (A[2]+B[2])/2+d*0.18]; let px = A[0], py = A[1], pz = A[2];
-    for(let s=1;s<=16;s++){ const t = s/16, u = 1-t, x = u*u*A[0]+2*u*t*M[0]+t*t*B[0], y = u*u*A[1]+2*u*t*M[1]+t*t*B[1], z = u*u*A[2]+2*u*t*M[2]+t*t*B[2]; if(lineVerts+2 > MAXV) return;
-      for(const [qx, qy, qz, tt] of [[px, py, pz, (s-1)/16],[x, y, z, t]]){ const o = lineVerts*7; lineData[o] = qx; lineData[o+1] = qy; lineData[o+2] = qz; lineData[o+3] = cA[0]+(cB[0]-cA[0])*tt; lineData[o+4] = cA[1]+(cB[1]-cA[1])*tt; lineData[o+5] = cA[2]+(cB[2]-cA[2])*tt; lineData[o+6] = 0.75; lineVerts++; }
-      px = x; py = y; pz = z; } } }
+const SUG = [0.95, 0.97, 1];
+function curve(A, B, cA, cB, al, dashed){ const d = Math.hypot(B[0]-A[0], B[1]-A[1], B[2]-A[2]), M = [(A[0]+B[0])/2, (A[1]+B[1])/2+d*0.12, (A[2]+B[2])/2+d*0.18], NS2 = dashed ? 26 : 16; let px = A[0], py = A[1], pz = A[2];
+  for(let q=1;q<=NS2;q++){ const tt = q/NS2, u = 1-tt, x = u*u*A[0]+2*u*tt*M[0]+tt*tt*B[0], y = u*u*A[1]+2*u*tt*M[1]+tt*tt*B[1], z = u*u*A[2]+2*u*tt*M[2]+tt*tt*B[2];
+    if(!dashed || q % 2){ if(lineVerts+2 > MAXV-40) return; for(const [qx, qy, qz, f] of [[px, py, pz, (q-1)/NS2], [x, y, z, tt]]){ const o = lineVerts*7; lineData[o] = qx; lineData[o+1] = qy; lineData[o+2] = qz; lineData[o+3] = cA[0]+(cB[0]-cA[0])*f; lineData[o+4] = cA[1]+(cB[1]-cA[1])*f; lineData[o+5] = cA[2]+(cB[2]-cA[2])*f; lineData[o+6] = al; lineVerts++; } }
+    px = x; py = y; pz = z; } }
+function buildLines(){ lineVerts = 0; if(!S.links || T < 1) return; const srcs = SEL.slice(); if(hovered >= 0 && !srcs.includes(hovered)) srcs.push(hovered);      // links of every picked item and of the one under the pointer
+  for(const src of srcs){ const A = livePos(src, [0,0,0]), cA = fullCol(src); for(const j of linked(src)) curve(A, livePos(j, [0,0,0]), cA, fullCol(j), 0.75, false);
+    if(S.sugg && SEL.includes(src)) for(const j of suggestOf(src)) curve(A, livePos(j, [0,0,0]), SUG, SUG, 0.85, true); } }      // dashed: not linked yet, but probably related
 let labelEls = [], leadEls = [];
 function buildLabels(){ const root = $("#labels"); root.innerHTML = ""; leadEls = [];
   labelEls = labels.map(l => { const d = document.createElement("div"); d.className = "lb "+l.c; d.textContent = l.t; root.append(d); let ld = null; if(l.lead){ ld = document.createElement("div"); ld.className = "ld"; root.append(ld); } leadEls.push(ld); l.w = 0; return d; }); }
@@ -992,7 +1035,10 @@ function placeLabels(){ const show = S.labels && T >= 1, placed = [], H = 19;
       if(!hit) break; y = (dy < -0.15 || (tr & 1 && dy <= 0.15)) ? hit.y-H-4 : hit.y+H+4; }
     placed.push({x, y, w:l.w}); e.style.opacity = fade; e.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
     if(ld){ const ex = dx >= 0 ? x : x+l.w, ey = y+H/2, len = Math.hypot(ex-ax, ey-ay); ld.style.opacity = fade*0.55; ld.style.width = len.toFixed(1)+"px"; ld.style.transform = `translate(${ax.toFixed(1)}px,${ay.toFixed(1)}px) rotate(${Math.atan2(ey-ay, ex-ax).toFixed(3)}rad)`; } }
-  const ring = $("#ring"); if(selected >= 0 && T >= 1){ livePos(selected, lv); project(lv[0], lv[1], lv[2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; } else ring.hidden = true; }
+  const r2 = $("#rings").children; for(let k=0;k<r2.length;k++){ const i = SEL[k]; if(i === undefined || i === selected || T < 1){ r2[k].hidden = true; continue; } livePos(i, lv); project(lv[0], lv[1], lv[2], tp); r2[k].hidden = tp[2] < 0; r2[k].style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; }
+  const ring = $("#ring"); if(selected >= 0 && T >= 1){ livePos(selected, lv); project(lv[0], lv[1], lv[2], tp); ring.hidden = tp[2] < 0; ring.style.transform = `translate(${tp[0].toFixed(1)}px,${tp[1].toFixed(1)}px)`; const sb = $("#selBar"), up = SB.i === selected && Math.abs(tp[1]-84) < 30 ? SB.up : tp[1] > 84, tx = clamp(tp[0], 160, Math.max(160, cssW-160)), ty = tp[1]+(up ? -20 : 20), far = Math.hypot(tx-SB.x, ty-SB.y);      // the toolbar rests while its item drifts a little, and catches up when it moves away
+    if(far > 46 || SB.i !== selected || SB.up !== up) SB.go = true; if(SB.go){ const f = SB.i !== selected || far > 320 ? 1 : 0.3; SB.x += (tx-SB.x)*f; SB.y += (ty-SB.y)*f; SB.i = selected; SB.up = up; if(Math.hypot(tx-SB.x, ty-SB.y) < 1) SB.go = false; }
+    sb.style.visibility = tp[2] < 0 ? "hidden" : ""; sb.style.transform = `translate(${SB.x.toFixed(0)}px,${SB.y.toFixed(0)}px) translate(-50%,${up ? "-100%" : "0"})`; } else ring.hidden = true; }
 const DENS_S = Math.pow(18000/NI, 0.17), DENS_G = Math.pow(18000/NI, 0.6);      // more items: slightly smaller and dimmer each, so the picture keeps its balance
 let tPrev = performance.now(), scafA = 1, webA = 0, scanA = 0;
 const BLOOM_W = [0, 0.75, 0.5, 0.42];                     // tight bloom: each wider level adds less, so glow stays a halo and never a fog
@@ -1007,7 +1053,7 @@ function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now
   gl.useProgram(pL.p); gl.uniformMatrix4fv(pL.u.uVP, false, VP); gl.uniform1f(pL.u.uTime, time); gl.uniform1f(pL.u.uAnat, anatA); gl.uniform1f(pL.u.uWave, wave); gl.uniform1f(pL.u.uDist, cam.dist);
   const force = u => { gl.uniform1f(u.uSwirl, S.swirl); gl.uniform1f(u.uTurb, S.turb); gl.uniform1f(u.uBreathe, S.breathe); gl.uniform1f(u.uSpread, S.spread); gl.uniform1f(u.uSwMode, reduced ? 0 : SWMODE[S.shape]); gl.uniform3f(u.uAxis, viewAxis[0], viewAxis[1], viewAxis[2]); };
   force(pL.u); gl.uniform1f(pL.u.uFade, flat() ? 0 : 1); gl.uniform3f(pL.u.uTint, tint[0], tint[1], tint[2]);
-  if(frameVerts && frameA > 0.01){ gl.uniform1f(pL.u.uA, frameA*S.threads*0.55*(any ? 0.5 : 1)*(1-0.7*scanA)*(growing ? clamp(growT*1.4, 0, 1) : 1)); gl.bindVertexArray(vaoFr); gl.drawArrays(gl.LINES, 0, frameVerts); }
+  if(frameVerts && frameA > 0.01){ gl.uniform1f(pL.u.uA, frameA*S.threads*0.55*(SEL.length ? 0.16 : any ? 0.5 : 1)*(1-0.7*scanA)*(growing ? clamp(growT*1.4, 0, 1) : 1)); gl.bindVertexArray(vaoFr); gl.drawArrays(gl.LINES, 0, frameVerts); }
   gl.uniform3f(pL.u.uTint, 1, 1, 1);
   if(webA > 0.01 && webPairs.length){ gl.uniform1f(pL.u.uA, webA*S.threads*(1-0.8*scanA)); gl.bindVertexArray(vaoW); gl.drawArrays(gl.LINES, 0, webPairs.length); }
   gl.uniform1f(pL.u.uFade, 0); gl.uniform1f(pL.u.uWave, 0);
@@ -1023,9 +1069,9 @@ function frame(now){ requestAnimationFrame(frame); const dt = Math.min(0.1, (now
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, scene.tex); gl.uniform1i(pC.u.uScene, 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, mips[0].tex); gl.uniform1i(pC.u.uBloom, 1);
   gl.uniform1f(pC.u.uGlow, S.glow*0.85*(1+0.25*thermA)); gl.uniform1f(pC.u.uExp, S.expo); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.activeTexture(gl.TEXTURE0);
 }
-function filtersChanged(){ const n = relit(); uploadMisc(); $("#bCount").textContent = (anyF()) ? fmt(n)+" of "+fmt(S.count)+" items lit" : fmt(S.count)+" items";
+function filtersChanged(){ const n = relit(); uploadMisc(); $("#bCount").textContent = SEL.length ? SEL.length+" picked · "+fmt(Math.max(0, n-SEL.length))+" connected" : (anyF()) ? fmt(n)+" of "+fmt(S.count)+" items lit" : fmt(S.count)+" items";
   const chips = []; if(F.heat !== null) chips.push(["heat", "Heat: "+BANDS[F.heat]]); if(F.group) chips.push(["group", GROUPS[F.group.by].name+": "+GROUPS[F.group.by].meta[F.group.val][0]]); if(F.project !== null) chips.push(["project", "Project: "+PROJ[F.project].name]); if(F.range) chips.push(["range", rangeText()]);
-  $("#bChips").innerHTML = chips.map(c => `<span class="chip">${esc(c[1])}<button data-clear="${c[0]}" aria-label="Remove filter">×</button></span>`).join(" "); renderLegend(); if(view === "timeline") renderTimeline(); return n; }
+  $("#bChips").innerHTML = SEL.map(i => `<span class="chip sel">${esc(short(title(i)))}<button data-unsel="${i}" aria-label="Remove from selection">×</button></span>`).join(" ")+(SEL.length > 1 ? ` <button class="link" data-sel-act="clear">Clear</button> ` : " ")+chips.map(c => `<span class="chip">${esc(c[1])}<button data-clear="${c[0]}" aria-label="Remove filter">×</button></span>`).join(" "); renderLegend(); if(view === "timeline") renderTimeline(); return n; }
 const qName = q => "Q"+(q % 4+1)+" "+(2021+Math.floor(q/4));
 const rangeText = () => { const a = Math.round(F.range[0]/3), b = Math.round(F.range[1]/3)-1; return a === b ? qName(a) : qName(a)+" – "+qName(b); };
 function legHover(v){ if(v === hoverLeg) return; hoverLeg = v; if(S.colBy === "heat") return; colourize(); uploadCol(); fillWeb(); }
@@ -1087,13 +1133,13 @@ function renderTimeline(){ const c = quarterCounts(), tot = c.map(q => q.reduce(
 
 /* ------------------------------------------------------------ 6. DRAWER, SEARCH, ROUTING */
 const refBtn = i => `<button class="ref" data-open="${i}">${esc(title(i))}<small>${TYPES[iType[i]][0]} · ${SOURCES[iSrc[i]][0]} · ${dateOf(iTm[i])}</small></button>`;
-function openItem(i){ selected = i; const p = iProj[i], ls = linksOf(i);
+function openItem(i){ const p = iProj[i], ls = linked(i), sg = suggestOf(i);
   $("#drawer").innerHTML = `<button class="x" aria-label="Close">×</button><div class="cap">${TYPES[iType[i]][0]}</div><h2>${esc(title(i))}</h2>
   <div class="meta"><span>${SOURCES[iSrc[i]][0]}</span><span>${dateOf(iTm[i])}</span><span>${[0,4,6].includes(iType[i]) ? "you and an assistant" : "your words"}</span></div>
   <p>${esc(excerpt(i))}</p>
-  <div class="acts">${p >= 0 ? `<button class="btn pri" data-proj="${p}">Open ${esc(PROJ[p].name)}</button>` : `<button class="btn pri" data-go="inbox">File it from the Inbox</button>`}<button class="btn" data-show-item="${i}">Show it in the Field</button></div>
+  <div class="acts">${p >= 0 ? `<button class="btn pri" data-proj="${p}">Open ${esc(PROJ[p].name)}</button>` : `<button class="btn pri" data-go="inbox">File it from the Inbox</button>`}<button class="btn" data-show-item="${i}">Show it in the Field</button><button class="btn" data-ask-one="${i}">To AI</button></div>
   <h5 class="cap">Where it sits</h5><div class="meta" style="gap:6px"><span class="pill"><i class="dot" style="background:${AREAS[iArea[i]][1]}"></i>${esc(AREAS[iArea[i]][0])}</span><span class="pill">${p >= 0 ? esc(PROJ[p].name) : "No project"}</span><span class="pill">${TYPES[iType[i]][0]}</span></div>
-  <h5 class="cap">Linked to ${ls.length}</h5>${ls.map(refBtn).join("")}<p class="fine">Generated example content.</p>`;
+  <h5 class="cap">Linked to ${ls.length}</h5>${ls.map(refBtn).join("")}${sg.length ? `<h5 class="cap">Might be related · ${sg.length}</h5>${sg.map(refBtn).join("")}<p class="fine">Not linked yet. Suggested by a simple rule in this mockup: same area, another project, written within a few weeks. The real system would compare what the items say.</p>` : ""}<p class="fine">Generated example content.</p>`;
   $("#drawer").classList.add("open"); }
 function openProject(pi){ const p = PROJ[pi], sc = new Int32Array(6); let recent = []; for(let k=0;k<p.n;k++){ sc[iSrc[p.start+k]]++; recent.push(p.start+k); } recent = recent.sort((a, b) => iTm[b]-iTm[a]).slice(0, 5);
   $("#drawer").innerHTML = `<button class="x" aria-label="Close">×</button><div class="cap">Project</div><h2>${esc(p.name)}</h2>
@@ -1107,6 +1153,30 @@ function openProject(pi){ const p = PROJ[pi], sc = new Int32Array(6); let recent
   <h5 class="cap">Most recent</h5>${recent.map(refBtn).join("")}
   <p class="fine">In the real system this page is written by a model, and every line links to the chat it came from.</p>`;
   $("#drawer").classList.add("open"); }
+const short = (x, n = 26) => x.length > n ? x.slice(0, n-1)+"…" : x;
+function setSel(list){ SEL.length = 0; for(const i of list) if(!SEL.includes(i) && SEL.length < 8) SEL.push(i); selChanged(); }
+function toggleSel(i){ const k = SEL.indexOf(i); if(k >= 0) SEL.splice(k, 1); else { if(SEL.length >= 8) SEL.shift(); SEL.push(i); } selChanged(); }
+function selChanged(){ selected = SEL.length ? SEL[SEL.length-1] : -1; const b = $("#selBar"); b.hidden = selected < 0;
+  if(selected >= 0) b.innerHTML = `<span class="st">${esc(title(selected))}</span><button data-sel-act="open">Open</button><button data-sel-act="ask" class="pri">To AI</button><button data-sel-act="zoom">Zoom</button><button data-sel-act="drop" aria-label="Remove from selection">×</button>`;
+  filtersChanged(); }
+/* the Ask tray: picked items become the context of one question. In a Claude artifact the question goes to Claude; anywhere else the prompt can be copied. */
+let sampler = null, askCtl = null;
+if(window.claude && typeof window.claude.use === "function") window.claude.use("sample").then(f => { sampler = f || null; renderAsk(); }, () => {});
+function askPrompt(){ const q = $("#askQ").value.trim() || "What connects these items, and what should I do next?";
+  return "These are items from my personal record (notes, files and chats with AI assistants). Use only what is written here.\n\n"+ASK.map((i, k) => (k+1)+". "+title(i)+"\n   "+TYPES[iType[i]][0]+" · "+(iProj[i] < 0 ? "no project" : "project: "+PROJ[iProj[i]].name)+" · "+AREAS[iArea[i]][0]+" · "+SOURCES[iSrc[i]][0]+" · "+dateOf(iTm[i])+"\n   "+excerpt(i)+"\n   Linked to: "+(linked(i).map(title).join("; ") || "nothing")).join("\n\n")+"\n\nQuestion: "+q+"\n\nAnswer in plain text, in under 150 words."; }
+function renderAsk(){ const a = $("#ask"); a.hidden = !ASK.length; $("#bHint").style.visibility = ASK.length ? "hidden" : ""; if(!ASK.length) return;
+  $("#askCtx").innerHTML = ASK.map(i => `<span class="chip">${esc(short(title(i)))}<button data-ask-rm="${i}" aria-label="Remove from the question">×</button></span>`).join(" ");
+  $("#askGo").hidden = !sampler || !!askCtl; $("#askStop").hidden = !askCtl;
+  $("#askNote").textContent = sampler ? "Ask sends the titles and summaries of "+(ASK.length === 1 ? "this item" : "these "+ASK.length+" items")+" to Claude on your account. The items are generated examples." : "No model is connected here. Copy the prompt and paste it into any assistant."; }
+function addAsk(list){ let n = 0; for(const i of list) if(!ASK.includes(i) && ASK.length < 12){ ASK.push(i); n++; } renderAsk(); if(!n) toast(ASK.length >= 12 ? "The question already holds 12 items." : "Already in the question."); }
+async function askGo(){ if(!sampler || askCtl || !ASK.length) return; const out = $("#askOut"); askCtl = new AbortController(); out.hidden = false; out.textContent = "Thinking…"; renderAsk();
+  try{ const r = await sampler(askPrompt(), {signal:askCtl.signal, onText:u => { out.textContent = u.text; }}); out.textContent = r.text+(r.truncated ? "\n\n(Cut short.)" : ""); }
+  catch(e){ const c = e && e.code, gone = ["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].includes(c); out.textContent = c === "refused" ? "" : (e && e.text) || "";
+    if(gone) sampler = null; else if(c !== "cancelled") out.textContent += (out.textContent ? "\n\n" : "")+(c === "rate_limited" ? "Too many requests just now. Try again later." : c === "session_expired" ? "Sign in again, then try once more." : c === "refused" ? "Claude declined this request." : c === "prompt_too_large" ? "Too much to send at once. Remove some items." : "That did not work. Try again.");
+    out.hidden = !out.textContent; }
+  askCtl = null; renderAsk(); }
+function askCopy(){ const p = askPrompt(), shown = () => { const out = $("#askOut"); out.hidden = false; out.textContent = p; toast("Copying was blocked. The prompt is shown in the tray."); };
+  try{ navigator.clipboard.writeText(p).then(() => toast("Prompt copied."), shown); }catch(e){ shown(); } }
 function closeDrawer(){ $("#drawer").classList.remove("open"); }
 let toastT = 0; function toast(s){ const t = $("#toast"); t.textContent = s; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600); }
 let titles = null, palSel = 0, palHits = [];
@@ -1126,7 +1196,7 @@ function syncForm(){
   $("#cA").value = S.custom[0]; $("#cB").value = S.custom[1];
   $$("input[data-s]").forEach(e => { e.value = S[e.dataset.s]; });
   $$(".scanrow").forEach(e => { e.hidden = !S.scan; }); $("#slice").hidden = !S.scan;
-  for(const [id, k] of [["tLabels","labels"],["tLinks","links"],["tScaf","scaf"],["tTurn","turn"],["tScan","scan"],["tSweep","sweep"]]) $("#"+id).setAttribute("aria-pressed", !!S[k]);
+  for(const [id, k] of [["tLabels","labels"],["tLinks","links"],["tScaf","scaf"],["tSugg","sugg"],["tTurn","turn"],["tScan","scan"],["tSweep","sweep"]]) $("#"+id).setAttribute("aria-pressed", !!S[k]);
   document.documentElement.style.setProperty("--accent", S.colBy === "heat" ? "#ff9f0a" : S.pal === "spectrum" ? "#0a84ff" : css(palAt(0.45).map(v => Math.min(1, v*1.05))));
 }
 function saveLook(){ try{ const o = {ov:OV}; for(const k in LOOK) o[k] = S[k]; localStorage.setItem("sbos-look-1", JSON.stringify(o)); }catch(e){} }
@@ -1144,11 +1214,17 @@ function countRead(){ $("#countRead").textContent = fmt(S.count)+" items · "+da
 function setCount(n, animate){ S.count = clamp(Math.round(n), 100, NI); $("#sCount").value = Math.log(S.count/100)/Math.log(NI/100); countRead(); if(growing) setGrow(false); applyLayout(animate !== false); filtersChanged(); }
 function setClean(on){ document.body.classList.toggle("clean", on); cssW = 0; if(on) toast("Interface hidden. Press H to bring it back."); }
 function setTurn(on){ S.turn = on; $("#tTurn").setAttribute("aria-pressed", on); }
-document.addEventListener("click", e => { const t = e.target.closest("[data-view],[data-proj],[data-open],[data-go],[data-shape],[data-lay],[data-pal],[data-col],[data-heat],[data-val],[data-clear],[data-year],[data-table],[data-file],[data-toast],[data-show-proj],[data-show-item],[data-tl-proj],.x,.tg"); if(!t) { if(e.target.id === "pal") palOpen(false); return; }
+document.addEventListener("click", e => { const t = e.target.closest("[data-view],[data-proj],[data-open],[data-go],[data-shape],[data-lay],[data-pal],[data-col],[data-heat],[data-val],[data-clear],[data-year],[data-table],[data-file],[data-toast],[data-show-proj],[data-show-item],[data-tl-proj],[data-unsel],[data-sel-act],[data-ask-rm],[data-ask-act],[data-ask-one],.x,.tg"); if(!t) { if(e.target.id === "pal") palOpen(false); return; }
   if(e.target.closest(".sw")) return;
   const d = t.dataset;
   if(t.classList.contains("x")) return closeDrawer();
-  if(t.classList.contains("tg")){ const on = t.getAttribute("aria-pressed") !== "true"; t.setAttribute("aria-pressed", on); ({tLabels:() => S.labels = on, tLinks:() => S.links = on, tScaf:() => S.scaf = on, tTurn:() => S.turn = on, tSweep:() => S.sweep = on, tScan:() => { S.scan = on; syncForm(); if(!on) filtersChanged(); }})[t.id](); return; }
+  if(d.unsel !== undefined) return toggleSel(+d.unsel);
+  if(d.selAct){ if(d.selAct === "clear") return setSel([]); const i = selected; if(i < 0) return; if(d.selAct === "open") return openItem(i); if(d.selAct === "ask") return addAsk(SEL.slice()); if(d.selAct === "drop") return toggleSel(i);
+    if(d.selAct === "zoom"){ const q = livePos(i, [0,0,0]); cam.gTg = [q[0], q[1], q[2]]; cam.gDist = Math.min(cam.gDist, 34); } return; }
+  if(d.askOne !== undefined){ addAsk([+d.askOne]); closeDrawer(); return go("field"); }
+  if(d.askRm !== undefined){ const k = ASK.indexOf(+d.askRm); if(k >= 0) ASK.splice(k, 1); return renderAsk(); }
+  if(d.askAct){ if(d.askAct === "go") return askGo(); if(d.askAct === "copy") return askCopy(); if(askCtl) askCtl.abort(); if(d.askAct === "close"){ ASK.length = 0; $("#askOut").hidden = true; $("#askOut").textContent = ""; renderAsk(); } return; }
+  if(t.classList.contains("tg")){ const on = t.getAttribute("aria-pressed") !== "true"; t.setAttribute("aria-pressed", on); ({tLabels:() => S.labels = on, tLinks:() => S.links = on, tScaf:() => S.scaf = on, tSugg:() => { S.sugg = on; filtersChanged(); }, tTurn:() => S.turn = on, tSweep:() => S.sweep = on, tScan:() => { S.scan = on; syncForm(); if(!on) filtersChanged(); }})[t.id](); return; }
   if(d.view) return go(d.view);
   if(d.shape) return setView(d.shape, null);
   if(d.lay) return setView(null, d.lay);
@@ -1163,7 +1239,7 @@ document.addEventListener("click", e => { const t = e.target.closest("[data-view
   if(d.file){ const i = +d.file, p = +d.to; iProj[i] = p; iArea[i] = PROJ[p].area; iStat[i] = PROJ[p].status; inbox = inbox.filter(x => x !== i); titles = null; renderInbox(); applyLayout(false); filtersChanged(); return toast("Filed under "+PROJ[p].name+"."); }
   if(d.showProj !== undefined){ F.project = +d.showProj; F.group = null; closeDrawer(); go("field"); return filtersChanged(); }
   if(d.tlProj !== undefined){ F.project = +d.tlProj; closeDrawer(); go("timeline"); return filtersChanged(); }
-  if(d.showItem !== undefined){ const i = +d.showItem; F.project = iProj[i] >= 0 ? iProj[i] : null; F.group = null; F.range = null; selected = i; go("field"); filtersChanged(); closeDrawer(); const k = i*3; cam.gTg = [pTo[k], pTo[k+1], pTo[k+2]]; cam.gDist = 60; return; }
+  if(d.showItem !== undefined){ const i = +d.showItem; F.project = iProj[i] >= 0 ? iProj[i] : null; F.group = null; F.range = null; go("field"); setSel([i]); closeDrawer(); const k = i*3; cam.gTg = [pTo[k], pTo[k+1], pTo[k+2]]; cam.gDist = 60; return; }
   if(d.go){ closeDrawer(); return go(d.go); }
   if(d.proj !== undefined){ palOpen(false); return openProject(+d.proj); }
   if(d.open !== undefined){ palOpen(false); return openItem(+d.open); }
@@ -1186,12 +1262,12 @@ $("#heatBy").addEventListener("change", e => { S.heat = e.target.value; F.heat =
 $("#vpBtn").onclick = () => $("#vp").classList.toggle("open"); $("#searchBtn").onclick = () => palOpen(true); $("#searchFab").onclick = () => palOpen(true); $("#palIn").addEventListener("input", palSearch);
 addEventListener("keydown", e => { if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k"){ e.preventDefault(); return palOpen($("#pal").hidden); }
   if(!$("#pal").hidden){ if(e.key === "Escape") return palOpen(false); const els = $$("#palOut .ref"); if(e.key === "ArrowDown" || e.key === "ArrowUp"){ e.preventDefault(); palSel = clamp(palSel+(e.key === "ArrowDown" ? 1 : -1), 0, els.length-1); els.forEach((x, k) => x.classList.toggle("sel", k === palSel)); els[palSel] && els[palSel].scrollIntoView({block:"nearest"}); } else if(e.key === "Enter" && els[palSel]) els[palSel].click(); return; }
-  if(e.key === "Escape"){ closeDrawer(); selected = -1; } if((e.key === "Enter" || e.key === " ") && e.target.matches(".live .row, .lr")){ e.preventDefault(); e.target.click(); }
+  if(e.key === "Escape"){ closeDrawer(); if(SEL.length) setSel([]); } if((e.key === "Enter" || e.key === " ") && e.target.matches(".live .row, .lr")){ e.preventDefault(); e.target.click(); }
   if(e.key.toLowerCase() === "r" && view === "field" && !e.metaKey && !e.ctrlKey && !e.target.matches("input, select, textarea")){ setTurn(!S.turn); toast(S.turn ? "Rotation on." : "Rotation stopped."); }
   if(view === "field" && !e.metaKey && !e.ctrlKey && !e.target.matches("input:not([type=range]), select, textarea")){ const k = e.key.toLowerCase(); if(k === "g") setGrow(!growing); else if(k === "h") setClean(!document.body.classList.contains("clean")); } });
 addEventListener("hashchange", () => go(location.hash.slice(1)));
 
-window.__os = { S, F, cam, OV, setCount, setGrow, setClean, get growing(){ return growing; }, setThermal, setColBy, setView, heat, PROJ, NI, N, go, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(i, [0,0,0]), get crowd(){ return crowdG; }, shownI:i => shown(i), set freeze(v){ frozen = v; }, zoomAt, title, pick, get insts(){ return insts.length; }, get lines(){ return frameVerts; } };
+window.__os = { S, F, cam, OV, setCount, setGrow, setClean, get growing(){ return growing; }, setThermal, setColBy, setView, heat, PROJ, NI, N, go, openItem, openProject, filtersChanged, project, get T(){ return T; }, pos:i => livePos(i, [0,0,0]), get crowd(){ return crowdG; }, shownI:i => shown(i), linked, get extentH(){ return extent.h; }, litI:i => pMisc[i*4] > 0.5, get linkVerts(){ return lineVerts; }, set freeze(v){ frozen = v; }, zoomAt, title, pick, get insts(){ return insts.length; }, get lines(){ return frameVerts; } };
 if(gl){ initGL(); bindInput(); } else $("#stage").innerHTML = '<p style="padding:24px;color:var(--ink-3)">The Field needs WebGL2. The other pages still work.</p>';
 loadLook(); syncForm(); countRead(); $("#sCount").value = 1;
 applyLayout(false); filtersChanged(); renderInbox(); renderNow();
