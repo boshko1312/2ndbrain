@@ -5,13 +5,14 @@ unit. Units gather into topic clusters that behave like small galaxies; linked
 topics are joined by streaming filaments; unfiled fragments drift in a sparse
 outer halo.
 
-![v3 home view](screenshots/v3-01-mass-400k.png)
+![v4 nervous-system layout](screenshots/v4-01-nervous-system.png)
 
 ## Two versions
 
 | File | Look | Particles | Motion |
 |---|---|---|---|
-| `particle-field-v3.html` (current) | One dense, matte, sculpted dust mass | 400k default, up to 1M | Computed on the GPU |
+| `particle-field-v4.html` (current) | v3 plus a nervous-system layout: brain, spinal cord, branching nerves | 400k default, up to 1M | Computed on the GPU |
+| `particle-field-v3.html` | One dense, matte, sculpted dust mass | 400k default, up to 1M | Computed on the GPU |
 | `particle-field-v2.html` | Bright bloomed web of small galaxies | 80k default, up to 150k | CPU simulation in a worker |
 
 ## Run it
@@ -36,6 +37,9 @@ one file each, no build step, no network, no dependencies. They need WebGL2.
 | `/` | Search clusters |
 | `Esc` | Deselect |
 
+v4 adds an **Anatomy** slider (off ↔ nerves) above the v3 sliders; it opens in
+the nervous-system layout.
+
 v3 sliders: form (single mass ↔ separated web), density, cloud size, glow,
 exposure, grain size, colour temperature (moss → leaf → ice), repulsion, link
 tension, swirl, turbulence, strand flow, time. In v3, hover identifies clusters
@@ -49,7 +53,8 @@ gravity, web pull, repulsion, link tension, spiral arms, turbulence, time.
 | Parameter | Effect |
 |---|---|
 | `?n=60000` | Starting particle count |
-| `?form=0.3` | v3 only: starting form, 0 (mass) to 1 (web) |
+| `?form=0.3` | v3/v4: starting form, 0 (mass) to 1 (web) |
+| `?anat=0` | v4 only: starting anatomy morph, 0 (off) to 1 (nervous system) |
 | `?seed=12` | Which field to generate |
 | `?q=0.7` | Lock render resolution scale (disables adaptive scaling) |
 | `?ui=0` | Start with UI hidden |

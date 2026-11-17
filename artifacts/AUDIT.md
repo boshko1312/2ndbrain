@@ -4,7 +4,8 @@ Deliverables in this folder:
 
 | File | What it is |
 |---|---|
-| `particle-field-v3.html` | **Current version.** Dense-dust rebuild made after the reference screenshot arrived. See §7. |
+| `particle-field-v4.html` | **Current version.** v3 plus the nervous-system layout. See §8. |
+| `particle-field-v3.html` | Dense-dust rebuild made after the reference screenshot arrived. See §7. |
 | `particle-field-v2.html` | First rebuild: CPU N-body-style simulation, bright bloomed look. Kept for comparison. |
 | `screenshots/` | Renders of v2 (`01`–`05`) and v3 (`v3-01`–`v3-05`). |
 | `README.md` | How to run it, controls, URL parameters. |
@@ -290,3 +291,53 @@ This is a real trade, not a free upgrade:
    morph into would get closer, at the cost of the layout meaning less.
 4. **Small clusters** still show as brighter smudges inside the mass.
 5. Limitations 2, 3, 6, 7 and 8 from §6 still apply.
+
+---
+
+## 8. v4 — nervous-system layout
+
+Requested explicitly, which overrides the earlier "no literal anatomy" brief.
+v4 is v3 with one addition: an **Anatomy** slider that morphs the whole field
+between the graph layout and a human nervous system. It opens at "nerves".
+
+### How it maps onto the data
+
+- A nerve tree is generated: brain tracts, spinal cord, rib nerves, a fan of
+  nerves below the cord, four nerves per limb, digit branches, and three
+  generations of fine side branches (about 1,460 of them).
+- **Clusters sit on the tree.** The 14 largest become brain lobes (12 cerebral,
+  2 cerebellar), the next 12 become ganglia along the spinal cord, and the
+  remaining 46 are scattered over the peripheral nerves.
+- **Links become fibres.** Each link's strand particles are laid along the tree
+  path between its two clusters, so cross-body links run through the spinal
+  cord. That is why the cord is the brightest structure.
+- Peripheral clusters put most of their units along their nearest nerve
+  branches rather than in a ball, so selecting one lights a region of nerves.
+- Every particle stores a second, anatomical home position; the shader blends
+  between the two with a per-particle stagger so the morph ripples.
+
+There is no face, skull, skin or body outline — only nerves and a brain.
+
+### Checks
+
+- Same headless interaction suite as v3 passed in anatomy mode: hover, click
+  select, unit pick, list selection with link lines, orbit and zoom, search,
+  density change to 600k, new field, phone-sized touch viewport.
+- Shader/JS mirror in anatomy mode: outer-halo particles hit a lit pixel at the
+  predicted position in 96 of 105 cases (control 8) fully morphed, and 80 of 89
+  (control 5) half-morphed.
+
+### Limitations
+
+1. **It is a stylised figure, not an anatomical atlas.** Nerve routes are
+   plausible, not accurate; there are no cranial nerves and no named plexuses.
+2. **Strand flow stops in anatomy mode.** Fibres hold their position along the
+   nerve; only the brightness pulse and the turbulence shimmer still move.
+3. **The brain is a smooth ovoid** with a central fissure and light surface
+   folding, not convincing gyri.
+4. **Which cluster lands on which body part is arbitrary** beyond size
+   (largest to brain). A real mapping, such as domain to region, is a design
+   decision that has not been made.
+5. **Left and right are not symmetric** in the fine branches, and the figure
+   can look ragged at the hands and feet.
+6. All v3 limitations still apply.
